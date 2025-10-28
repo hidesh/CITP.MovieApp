@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Api.Utils;
 
@@ -6,7 +6,7 @@ namespace CITP.MovieApp.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class MoviesController(IMovieRepository repo) : ControllerBase
+    public class PersonController(IPersonRepository repo) : ControllerBase
     {
         [HttpGet]
         public async Task<IActionResult> Get(int page = 1, int pageSize = 20)
@@ -31,19 +31,19 @@ namespace CITP.MovieApp.Api.Controllers
             });
         }
 
-        [HttpGet("{tconst}")]
-        public async Task<IActionResult> GetById(string tconst)
+        [HttpGet("{nconst}")]
+        public async Task<IActionResult> GetById(string nconst)
         {
-            var title = await repo.GetByIdAsync(tconst);
-            if (title == null) return NotFound();
-            return Ok(title);
+            var person = await repo.GetByIdAsync(nconst);
+            if (person == null) return NotFound();
+            return Ok(person);
         }
 
-        [HttpGet("{tconst}/cast")]
-        public async Task<IActionResult> GetCast(string tconst)
+        [HttpGet("{nconst}/filmography")]
+        public async Task<IActionResult> GetFilmography(string nconst)
         {
-            var cast = await repo.GetCastAndCrewAsync(tconst);
-            return Ok(cast);
+            var filmography = await repo.GetFilmographyAsync(nconst);
+            return Ok(filmography);
         }
     }
 }

@@ -1,25 +1,23 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace CITP.MovieApp.Application.DTOs
+{
+    public class TitleDto
+    {
+        public string Tconst { get; set; } = null!;
+        public string PrimaryTitle { get; set; } = null!;
+        public string OriginalTitle { get; set; } = null!;
+        public string? TitleType { get; set; }
+        public bool IsAdult { get; set; }
+        public int? StartYear { get; set; }
+        public int? EndYear { get; set; }
+        public int? RuntimeMinutes { get; set; }
+    }
 
-namespace CITP.MovieApp.Application.DTOs;
+    public class TitleCastCrewDto
+    {
+        public string Nconst { get; set; } = null!; 
+        public string Name { get; set; } = null!;
 
-public record MovieDto(
-    string tconst,
-    string title,
-    int? year,
-    float? averageRating,
-    int? numVotes,
-    string self
-);
-
-public record PagedResult<T>(
-    int page,
-    int pageSize,
-    int total,
-    IEnumerable<T> data,
-    string? next,
-    string? prev
-);
+        public string? Job { get; set; } 
+        public string? CharacterName { get; set; } 
+    }
+}

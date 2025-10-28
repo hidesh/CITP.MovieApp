@@ -1,9 +1,11 @@
-﻿using CITP.MovieApp.Domain;
+using CITP.MovieApp.Application.DTOs;
 
-namespace CITP.MovieApp.Application.Abstractions;
-
-public interface IPersonRepository
+namespace CITP.MovieApp.Application.Abstractions
 {
-    Task<Person?> GetByIdAsync(string nconst, CancellationToken ct);
-    Task<(IEnumerable<Person> items, int total)> SearchAsync(string? q, int page, int size, CancellationToken ct);
+    public interface IPersonRepository
+    {
+        Task<IEnumerable<PersonDto>> GetAllAsync();
+        Task<PersonDto?> GetByIdAsync(string nconst);
+        Task<IEnumerable<PersonFilmographyDto>> GetFilmographyAsync(string nconst);
+    }
 }

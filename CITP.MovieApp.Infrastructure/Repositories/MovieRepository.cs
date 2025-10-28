@@ -1,41 +1,73 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore;
+using CITP.MovieApp.Application.Abstractions;
+using CITP.MovieApp.Application.DTOs;
+using CITP.MovieApp.Domain.Entities;
+using CITP.MovieApp.Infrastructure.Persistence;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 
-using CITP.MovieApp.Application.Abstractions;
-using CITP.MovieApp.Domain;
-using CITP.MovieApp.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-
-namespace CITP.MovieApp.Infrastructure.Repositories;
-
-public class MovieRepository : IMovieRepository
+namespace CITP.MovieApp.Infrastructure.Repositories
 {
-    private readonly AppDbContext _db;
-    public MovieRepository(AppDbContext db) => _db = db;
-
-    public async Task<Movie?> GetByIdAsync(string tconst, CancellationToken ct)
-        => await _db.Movies.AsNoTracking().FirstOrDefaultAsync(m => m.TConst == tconst, ct);
-
-    public async Task<(IEnumerable<Movie> items, int total)> SearchAsync(string? q, int page, int size, CancellationToken ct)
+    public class MovieRepository : IMovieRepository
     {
-        var query = _db.Movies.AsNoTracking().AsQueryable();
+        private readonly AppDbContext _context;
+        private readonly DbSet<Title> _dbSet;
 
-        if (!string.IsNullOrWhiteSpace(q))
+        public MovieRepository(AppDbContext context)
         {
-            var s = q.Trim().ToLower();
-            query = query.Where(m => m.PrimaryTitle.ToLower().Contains(s));
+            _context = context;
+            _dbSet = _context.Set<Title>();
         }
 
-        var total = await query.CountAsync(ct);
-        var items = await query
-            .OrderBy(m => m.PrimaryTitle)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .ToListAsync(ct);
+        public async Task<IEnumerable<TitleDto>> GetAllAsync()
+        {
+            return await _dbSet
+                .Select(t => new TitleDto
+                {
+                    Tconst = t.Tconst,
+                    PrimaryTitle = t.PrimaryTitle,
+                    OriginalTitle = t.OriginalTitle,
+                    TitleType = t.TitleType,
+                    IsAdult = t.IsAdult,
+                    StartYear = t.StartYear,
+                    EndYear = t.EndYear,
+                    RuntimeMinutes = t.RuntimeMinutes
+                })
+                .ToListAsync();
+        }
 
-        return (items, total);
+        public async Task<TitleDto?> GetByIdAsync(string tconst)
+        {
+            return await _dbSet
+                .Where(t => t.Tconst == tconst)
+                .Select(t => new TitleDto
+                {
+                    Tconst = t.Tconst,
+                    PrimaryTitle = t.PrimaryTitle,
+                    OriginalTitle = t.OriginalTitle,
+                    TitleType = t.TitleType,
+                    IsAdult = t.IsAdult,
+                    StartYear = t.StartYear,
+                    EndYear = t.EndYear,
+                    RuntimeMinutes = t.RuntimeMinutes
+                })
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<IEnumerable<TitleCastCrewDto>> GetCastAndCrewAsync(string tconst)
+        {
+            return await _context.Set<Role>()
+                .Where(r => r.Tconst == tconst)
+                .Include(r => r.Person)
+                .Select(r => new TitleCastCrewDto
+                {
+                    Nconst = r.Person!.Nconst,
+                    Name = r.Person.PrimaryName,
+                    Job = r.Job,
+                    CharacterName = r.CharacterName
+                })
+                .ToListAsync();
+        }
     }
 }
