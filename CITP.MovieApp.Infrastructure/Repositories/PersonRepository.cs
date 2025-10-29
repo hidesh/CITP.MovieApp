@@ -1,41 +1,65 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿using Microsoft.EntityFrameworkCore;
 using CITP.MovieApp.Application.Abstractions;
-using CITP.MovieApp.Domain;
+using CITP.MovieApp.Application.DTOs;
+using CITP.MovieApp.Domain.Entities;
 using CITP.MovieApp.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
-namespace CITP.MovieApp.Infrastructure.Repositories;
-
-public class PersonRepository : IPersonRepository
+namespace CITP.MovieApp.Infrastructure.Repositories
 {
-    private readonly AppDbContext _db;
-    public PersonRepository(AppDbContext db) => _db = db;
-
-    public async Task<Person?> GetByIdAsync(string nconst, CancellationToken ct)
-        => await _db.People.AsNoTracking().FirstOrDefaultAsync(p => p.NConst == nconst, ct);
-
-    public async Task<(IEnumerable<Person> items, int total)> SearchAsync(string? q, int page, int size, CancellationToken ct)
+    public class PersonRepository : IPersonRepository
     {
-        var query = _db.People.AsNoTracking().AsQueryable();
+        private readonly AppDbContext _context;
+        private readonly DbSet<Person> _dbSet;
 
-        if (!string.IsNullOrWhiteSpace(q))
+        public PersonRepository(AppDbContext context)
         {
-            var s = q.Trim().ToLower();
-            query = query.Where(p => p.PrimaryName.ToLower().Contains(s));
+            _context = context;
+            _dbSet = _context.Set<Person>();
         }
 
-        var total = await query.CountAsync(ct);
-        var items = await query
-            .OrderBy(p => p.PrimaryName)
-            .Skip((page - 1) * size)
-            .Take(size)
-            .ToListAsync(ct);
+        public async Task<IEnumerable<PersonDto>> GetAllAsync()
+        {
+            return await _dbSet
+                .Select(p => new PersonDto
+                {
+                    Nconst = p.Nconst,
+                    PrimaryName = p.PrimaryName,
+                    BirthYear = p.BirthYear,
+                    DeathYear = p.DeathYear,
+                    PrimaryProfession = p.PrimaryProfession
+                })
+                .ToListAsync();
+        }
 
-        return (items, total);
+        public async Task<PersonDto?> GetByIdAsync(string nconst)
+        {
+            return await _dbSet
+                .Where(p => p.Nconst == nconst)
+                .Select(p => new PersonDto
+                {
+                    Nconst = p.Nconst,
+                    PrimaryName = p.PrimaryName,
+                    BirthYear = p.BirthYear,
+                    DeathYear = p.DeathYear,
+                    PrimaryProfession = p.PrimaryProfession
+                })
+                .FirstOrDefaultAsync();
+        }
+
+        public async Task<IEnumerable<PersonFilmographyDto>> GetFilmographyAsync(string nconst)
+        {
+            return await _context.Set<Role>()
+                .Where(r => r.Nconst == nconst)
+                .Include(r => r.Title)
+                .Select(r => new PersonFilmographyDto
+                {
+                    Tconst = r.Title!.Tconst,
+                    Title = r.Title.PrimaryTitle,
+                    Job = r.Job,
+                    CharacterName = r.CharacterName,
+                    StartYear = r.Title.StartYear
+                })
+                .ToListAsync();
+        }
     }
 }
