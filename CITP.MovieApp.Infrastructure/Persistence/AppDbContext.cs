@@ -208,6 +208,7 @@ namespace CITP.MovieApp.Infrastructure.Persistence
 
                 entity.HasOne(n => n.User).WithMany(u => u.Notes).HasForeignKey(n => n.UserId);
                 entity.HasOne(n => n.Title).WithMany(t => t.Notes).HasForeignKey(n => n.Tconst);
+                entity.HasOne(n => n.Person).WithMany(p => p.Notes).HasForeignKey(n => n.Nconst);
             });
 
             /* ------------------------- RATING ------------------------- */
