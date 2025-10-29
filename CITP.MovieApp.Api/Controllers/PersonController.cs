@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Api.Utils;
@@ -6,6 +7,7 @@ namespace CITP.MovieApp.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [AllowAnonymous] //  Allows public access
     public class PersonController(IPersonRepository repo) : ControllerBase
     {
         [HttpGet]

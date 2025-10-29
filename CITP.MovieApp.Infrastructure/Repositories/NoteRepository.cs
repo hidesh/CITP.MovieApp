@@ -10,16 +10,16 @@ namespace CITP.MovieApp.Infrastructure.Repositories
     {
         private readonly AppDbContext _db;
 
-        public NoteRepository(AppDbContext db) => _db = db;
-
-        public async Task<IEnumerable<NoteDto>> GetAllForUserAsync(int userId, string? tconst = null, string? nconst = null)
+        public NoteRepository(AppDbContext db)
         {
-            var q = _db.Notes.AsNoTracking().Where(n => n.UserId == userId);
+            _db = db;
+        }
 
-            if (!string.IsNullOrWhiteSpace(tconst)) q = q.Where(n => n.Tconst == tconst);
-            if (!string.IsNullOrWhiteSpace(nconst)) q = q.Where(n => n.Nconst == nconst);
-
-            return await q
+        // Get all notes for a user
+        public async Task<IEnumerable<NoteDto>> GetAllForUserAsync(int userId)
+        {
+            return await _db.Notes.AsNoTracking()
+                .Where(n => n.UserId == userId)
                 .OrderByDescending(n => n.UpdatedAt ?? n.NotedAt)
                 .Select(n => new NoteDto
                 {
@@ -34,34 +34,47 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public async Task<NoteDto?> GetForUserByIdAsync(int noteId, int userId)
+        // Get all notes for a user on a specific movie
+        public async Task<IEnumerable<NoteDto>> GetAllForUserByMovieAsync(int userId, string tconst)
         {
             return await _db.Notes.AsNoTracking()
-                .Where(n => n.NoteId == noteId && n.UserId == userId)
+                .Where(n => n.UserId == userId && n.Tconst == tconst)
+                .OrderByDescending(n => n.UpdatedAt ?? n.NotedAt)
                 .Select(n => new NoteDto
                 {
                     NoteId = n.NoteId,
-                    UserId = n.UserId,
                     Tconst = n.Tconst,
+                    Content = n.Content,
+                    NotedAt = n.NotedAt,
+                    UpdatedAt = n.UpdatedAt
+                })
+                .ToListAsync();
+        }
+
+        // Get all notes for a user on a specific person
+        public async Task<IEnumerable<NoteDto>> GetAllForUserByPersonAsync(int userId, string nconst)
+        {
+            return await _db.Notes.AsNoTracking()
+                .Where(n => n.UserId == userId && n.Nconst == nconst)
+                .OrderByDescending(n => n.UpdatedAt ?? n.NotedAt)
+                .Select(n => new NoteDto
+                {
+                    NoteId = n.NoteId,
                     Nconst = n.Nconst,
                     Content = n.Content,
                     NotedAt = n.NotedAt,
                     UpdatedAt = n.UpdatedAt
                 })
-                .FirstOrDefaultAsync();
+                .ToListAsync();
         }
 
-        public async Task<int> CreateAsync(int userId, NoteCreateDto dto)
+        // Create note for a movie
+        public async Task<int> CreateForMovieAsync(int userId, string tconst, NoteCreateDto dto)
         {
-            if ((dto.Tconst is null && dto.Nconst is null) ||
-                (dto.Tconst is not null && dto.Nconst is not null))
-                throw new ArgumentException("Exactly one of Tconst or Nconst must be provided.");
-
             var entity = new Note
             {
                 UserId = userId,
-                Tconst = dto.Tconst,
-                Nconst = dto.Nconst,
+                Tconst = tconst,
                 Content = dto.Content.Trim(),
                 NotedAt = DateTime.UtcNow
             };
@@ -71,10 +84,27 @@ namespace CITP.MovieApp.Infrastructure.Repositories
             return entity.NoteId;
         }
 
+        //  Create note for a person
+        public async Task<int> CreateForPersonAsync(int userId, string nconst, NoteCreateDto dto)
+        {
+            var entity = new Note
+            {
+                UserId = userId,
+                Nconst = nconst,
+                Content = dto.Content.Trim(),
+                NotedAt = DateTime.UtcNow
+            };
+
+            _db.Notes.Add(entity);
+            await _db.SaveChangesAsync();
+            return entity.NoteId;
+        }
+
+        // Update note content (only if user owns it)
         public async Task<bool> UpdateAsync(int noteId, int userId, NoteUpdateDto dto)
         {
             var entity = await _db.Notes.FirstOrDefaultAsync(n => n.NoteId == noteId && n.UserId == userId);
-            if (entity is null) return false;
+            if (entity == null) return false;
 
             entity.Content = dto.Content.Trim();
             entity.UpdatedAt = DateTime.UtcNow;
@@ -83,10 +113,11 @@ namespace CITP.MovieApp.Infrastructure.Repositories
             return true;
         }
 
+        //  Delete a note (only if user owns it)
         public async Task<bool> DeleteAsync(int noteId, int userId)
         {
             var entity = await _db.Notes.FirstOrDefaultAsync(n => n.NoteId == noteId && n.UserId == userId);
-            if (entity is null) return false;
+            if (entity == null) return false;
 
             _db.Notes.Remove(entity);
             await _db.SaveChangesAsync();

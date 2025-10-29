@@ -8,6 +8,7 @@ using CITP.MovieApp.Domain.Entities;
 using CITP.MovieApp.Infrastructure.Repositories;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authorization;
 
 namespace CITP.MovieApp.Api.Controllers
 {
@@ -25,6 +26,7 @@ namespace CITP.MovieApp.Api.Controllers
         }
 
         [HttpPost("register")]
+        [AllowAnonymous]
         public async Task<IActionResult> Register(RegisterRequest req)
         {
             // Validate email format
@@ -56,42 +58,50 @@ namespace CITP.MovieApp.Api.Controllers
         }
 
         [HttpPost("login")]
+        [AllowAnonymous]
         public async Task<IActionResult> Login(LoginRequest req)
         {
             var user = await _users.GetByUsernameAsync(req.Username);
 
             // Unified error message
             if (user == null || !VerifyPassword(req.Password, user.PasswordHash))
-            {
                 return Unauthorized(new { message = "Invalid Username and/or password" });
-            }
 
-            var token = GenerateJwtToken(user.Username);
+            var token = GenerateJwtToken(user);
             return Ok(new { token });
         }
 
-        private string GenerateJwtToken(string username)
+        // ✅ FIXED: JWT now includes user ID, username, and email claims
+        private string GenerateJwtToken(User user)
         {
             var jwtSection = _config.GetSection("Jwt");
             var key = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key")!);
 
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()), // Important for authorization
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Email, user.Email)
+            };
+
             var tokenHandler = new JwtSecurityTokenHandler();
             var tokenDescriptor = new SecurityTokenDescriptor
             {
-                Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.Name, username)
-                }),
+                Subject = new ClaimsIdentity(claims),
                 Expires = DateTime.UtcNow.AddMinutes(jwtSection.GetValue<int>("ExpiryMinutes")),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
+                SigningCredentials = new SigningCredentials(
+                    new SymmetricSecurityKey(key),
+                    SecurityAlgorithms.HmacSha256Signature
+                ),
                 Issuer = jwtSection.GetValue<string>("Issuer"),
                 Audience = jwtSection.GetValue<string>("Audience")
             };
+
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }
 
-        // SHA256 hashing 
+        // SHA256 hashing
         private static string HashPassword(string password)
         {
             using var sha = SHA256.Create();
