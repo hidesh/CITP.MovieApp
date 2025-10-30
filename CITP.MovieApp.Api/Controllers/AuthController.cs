@@ -71,7 +71,7 @@ namespace CITP.MovieApp.Api.Controllers
             return Ok(new { token });
         }
 
-        // ✅ FIXED: Token generation aligned with Program.cs
+        // Token generation aligned with Program.cs
         private string GenerateJwtToken(User user)
         {
             var jwtSection = _config.GetSection("Jwt");
