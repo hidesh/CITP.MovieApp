@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Text;
 using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Infrastructure.Persistence;
@@ -6,16 +7,33 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using CITP.MovieApp.Infrastructure.Repositories;
 using Microsoft.OpenApi.Models;
+using DotNetEnv; 
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+// Load environment variables first
+Env.Load();
+
+builder.Configuration
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddEnvironmentVariables();
+
+// Manually substitute ${VAR} placeholders in connection string
+var config = builder.Configuration;
+string connStr = config.GetConnectionString("DefaultConnection");
+
+foreach (var kvp in Environment.GetEnvironmentVariables().Cast<DictionaryEntry>())
+{
+    connStr = connStr.Replace($"${{{kvp.Key}}}", kvp.Value?.ToString());
+}
+
+builder.Configuration["ConnectionStrings:DefaultConnection"] = connStr;
 
 // Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// ✅ Swagger configuration with JWT support
+// Swagger configuration with JWT support
 builder.Services.AddSwaggerGen(c =>
 {
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -56,6 +74,7 @@ builder.Services.AddScoped<INoteRepository, NoteRepository>();
 // JWT Authentication
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var key = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key")!);
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
