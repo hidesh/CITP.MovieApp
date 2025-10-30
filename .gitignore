@@ -365,3 +365,6 @@ FodyWeavers.xsd
 .gitattributes
 
 *.idea/
+
+# environment variables file
+CITP.MovieApp.Api/.env
