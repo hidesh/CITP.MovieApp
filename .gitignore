@@ -365,7 +365,8 @@ FodyWeavers.xsd
 # Environment variables
 .env
 
-
-.gitattributes
-
-*.idea/
+# IDE folders
+.idea/
+.vscode/
+**/.idea/
+.gitattributes/
