@@ -71,32 +71,37 @@ namespace CITP.MovieApp.Api.Controllers
             return Ok(new { token });
         }
 
-        // ✅ FIXED: JWT now includes user ID, username, and email claims
+        // ✅ FIXED: Token generation aligned with Program.cs
         private string GenerateJwtToken(User user)
         {
             var jwtSection = _config.GetSection("Jwt");
-            var key = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key")!);
+
+            // Ensure the same encoding & key format as Program.cs
+            var keyBytes = Encoding.ASCII.GetBytes(jwtSection["Key"] ?? throw new Exception("JWT key missing"));
+            var signingKey = new SymmetricSecurityKey(keyBytes);
 
             var claims = new[]
             {
-                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()), // Important for authorization
+                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
                 new Claim(ClaimTypes.Name, user.Username),
                 new Claim(ClaimTypes.Email, user.Email)
             };
 
-            var tokenHandler = new JwtSecurityTokenHandler();
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+
+            // Use safe int parse with fallback
+            int expiryMinutes = int.TryParse(jwtSection["ExpiryMinutes"], out var val) ? val : 60;
+
             var tokenDescriptor = new SecurityTokenDescriptor
             {
                 Subject = new ClaimsIdentity(claims),
-                Expires = DateTime.UtcNow.AddMinutes(jwtSection.GetValue<int>("ExpiryMinutes")),
-                SigningCredentials = new SigningCredentials(
-                    new SymmetricSecurityKey(key),
-                    SecurityAlgorithms.HmacSha256Signature
-                ),
-                Issuer = jwtSection.GetValue<string>("Issuer"),
-                Audience = jwtSection.GetValue<string>("Audience")
+                Expires = DateTime.UtcNow.AddMinutes(expiryMinutes),
+                SigningCredentials = creds,
+                Issuer = jwtSection["Issuer"],
+                Audience = jwtSection["Audience"]
             };
 
+            var tokenHandler = new JwtSecurityTokenHandler();
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }

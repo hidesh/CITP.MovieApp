@@ -29,9 +29,25 @@ foreach (var kvp in Environment.GetEnvironmentVariables().Cast<DictionaryEntry>(
 
 builder.Configuration["ConnectionStrings:DefaultConnection"] = connStr;
 
+// Substitute ${VAR} placeholders in Jwt config
+var jwtConfig = config.GetSection("Jwt");
+foreach (var kvp in Environment.GetEnvironmentVariables().Cast<DictionaryEntry>())
+{
+    foreach (var jwtKeyName in new[] { "Key", "Issuer", "Audience", "ExpiryMinutes" })
+    {
+        var currentValue = jwtConfig[jwtKeyName];
+        if (!string.IsNullOrWhiteSpace(currentValue))
+            jwtConfig[jwtKeyName] = currentValue.Replace($"${{{kvp.Key}}}", kvp.Value?.ToString());
+    }
+}
+
+// Convert ExpiryMinutes to int safely
+int expiryMinutes = int.TryParse(jwtConfig["ExpiryMinutes"], out var val) ? val : 60;
+
 // Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+
 
 // Swagger configuration with JWT support
 builder.Services.AddSwaggerGen(c =>
