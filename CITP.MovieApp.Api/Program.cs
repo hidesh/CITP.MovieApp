@@ -12,7 +12,7 @@ using DotNetEnv;
 var builder = WebApplication.CreateBuilder(args);
 
 // Load environment variables first
-Env.Load();
+DotNetEnv.Env.Load();
 
 builder.Configuration
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
@@ -86,6 +86,7 @@ builder.Services.AddScoped<IPersonRepository, PersonRepository>();
 builder.Services.AddScoped<IMovieRepository, MovieRepository>();
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
+builder.Services.AddScoped<IRatingRepository, RatingRepository>();
 
 // JWT Authentication
 var jwtSection = builder.Configuration.GetSection("Jwt");
