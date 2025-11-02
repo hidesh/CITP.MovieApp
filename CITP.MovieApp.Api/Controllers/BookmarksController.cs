@@ -62,6 +62,27 @@ namespace CITP.MovieApp.Api.Controllers
             return Ok(newBookmark);
         }
 
+        [HttpDelete("{id}")]
+        [Authorize]
+        public async Task<IActionResult> Delete(int id)
+        {
+            // First check if the bookmark exists and belongs to the current user
+            var bookmark = await repo.GetByIdAsync(id);
+            if (bookmark == null)
+                return NotFound("Bookmark not found");
+
+            int userId = GetCurrentUserId();
+            if (bookmark.UserId != userId)
+                return Forbid("You can only delete your own bookmarks");
+
+            // Attempt to delete the bookmark
+            var deleted = await repo.DeleteByIdAsync(id);
+            if (!deleted)
+                return NotFound("Bookmark not found");
+
+            return NoContent(); // 204 No Content - successful deletion
+        }
+
         private int GetCurrentUserId()
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst("userId");

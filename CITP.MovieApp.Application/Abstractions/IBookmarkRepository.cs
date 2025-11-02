@@ -6,7 +6,7 @@ namespace CITP.MovieApp.Application.Abstractions
     {
         Task<IEnumerable<BookmarkDto>> GetAllAsync(int userId);
         Task<BookmarkDto?> GetByIdAsync(int bookmarkId);
-        Task DeleteByIdAsync(int bookmarkId);
+        Task<bool> DeleteByIdAsync(int bookmarkId);
         Task<BookmarkDto> AddBookmarkAsync(int userId, string? tconst, string? nconst);
     }
 }

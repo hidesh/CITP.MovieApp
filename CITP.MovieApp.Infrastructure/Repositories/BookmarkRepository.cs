@@ -47,14 +47,15 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 .FirstOrDefaultAsync();
         }
 
-        public async Task DeleteByIdAsync(int bookmarkId)
+        public async Task<bool> DeleteByIdAsync(int bookmarkId)
         {
             var bookmark = await _dbSet.FindAsync(bookmarkId);
-            if (bookmark != null)
-            {
-                _dbSet.Remove(bookmark);
-                await _context.SaveChangesAsync();
-            }
+            if (bookmark == null)
+                return false; // Bookmark not found
+            
+            _dbSet.Remove(bookmark);
+            await _context.SaveChangesAsync();
+            return true; // Successfully deleted
         }
 
         public async Task<BookmarkDto> AddBookmarkAsync(int userId, string? tconst, string? nconst)
