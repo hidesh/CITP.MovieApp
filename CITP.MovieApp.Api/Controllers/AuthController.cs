@@ -66,11 +66,11 @@ namespace CITP.MovieApp.Api.Controllers
                 return Unauthorized(new { message = "Invalid Username and/or password" });
             }
 
-            var token = GenerateJwtToken(user.Username);
+            var token = GenerateJwtToken(user);
             return Ok(new { token });
         }
 
-        private string GenerateJwtToken(string username)
+        private string GenerateJwtToken(User user)
         {
             var jwtSection = _config.GetSection("Jwt");
             var key = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key")!);
@@ -80,7 +80,9 @@ namespace CITP.MovieApp.Api.Controllers
             {
                 Subject = new ClaimsIdentity(new[]
                 {
-                    new Claim(ClaimTypes.Name, username)
+                    new Claim(ClaimTypes.Name, user.Username),
+                    new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+                    new Claim("userId", user.UserId.ToString())
                 }),
                 Expires = DateTime.UtcNow.AddMinutes(jwtSection.GetValue<int>("ExpiryMinutes")),
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
