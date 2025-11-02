@@ -8,6 +8,7 @@ using CITP.MovieApp.Domain.Entities;
 using CITP.MovieApp.Infrastructure.Repositories;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authorization;
 
 namespace CITP.MovieApp.Api.Controllers
 {
@@ -25,6 +26,7 @@ namespace CITP.MovieApp.Api.Controllers
         }
 
         [HttpPost("register")]
+        [AllowAnonymous]
         public async Task<IActionResult> Register(RegisterRequest req)
         {
             // Validate email format
@@ -56,44 +58,56 @@ namespace CITP.MovieApp.Api.Controllers
         }
 
         [HttpPost("login")]
+        [AllowAnonymous]
         public async Task<IActionResult> Login(LoginRequest req)
         {
             var user = await _users.GetByUsernameAsync(req.Username);
 
             // Unified error message
             if (user == null || !VerifyPassword(req.Password, user.PasswordHash))
-            {
                 return Unauthorized(new { message = "Invalid Username and/or password" });
-            }
 
+            var token = GenerateJwtToken(user);
             var token = GenerateJwtToken(user);
             return Ok(new { token });
         }
 
+        // Token generation aligned with Program.cs
         private string GenerateJwtToken(User user)
         {
             var jwtSection = _config.GetSection("Jwt");
-            var key = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key")!);
 
-            var tokenHandler = new JwtSecurityTokenHandler();
+            // Ensure the same encoding & key format as Program.cs
+            var keyBytes = Encoding.ASCII.GetBytes(jwtSection["Key"] ?? throw new Exception("JWT key missing"));
+            var signingKey = new SymmetricSecurityKey(keyBytes);
+
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Email, user.Email)
+            };
+
+            var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
+
+            // Use safe int parse with fallback
+            int expiryMinutes = int.TryParse(jwtSection["ExpiryMinutes"], out var val) ? val : 60;
+
             var tokenDescriptor = new SecurityTokenDescriptor
             {
-                Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.Name, user.Username),
-                    new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
-                    new Claim("userId", user.UserId.ToString())
-                }),
-                Expires = DateTime.UtcNow.AddMinutes(jwtSection.GetValue<int>("ExpiryMinutes")),
-                SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
-                Issuer = jwtSection.GetValue<string>("Issuer"),
-                Audience = jwtSection.GetValue<string>("Audience")
+                Subject = new ClaimsIdentity(claims),
+                Expires = DateTime.UtcNow.AddMinutes(expiryMinutes),
+                SigningCredentials = creds,
+                Issuer = jwtSection["Issuer"],
+                Audience = jwtSection["Audience"]
             };
+
+            var tokenHandler = new JwtSecurityTokenHandler();
             var token = tokenHandler.CreateToken(tokenDescriptor);
             return tokenHandler.WriteToken(token);
         }
 
-        // SHA256 hashing 
+        // SHA256 hashing
         private static string HashPassword(string password)
         {
             using var sha = SHA256.Create();

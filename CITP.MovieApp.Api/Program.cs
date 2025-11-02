@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Text;
 using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Infrastructure.Persistence;
@@ -5,35 +6,69 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using CITP.MovieApp.Infrastructure.Repositories;
+using Microsoft.OpenApi.Models;
+using DotNetEnv; 
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+// Load environment variables first
+Env.Load();
+
+builder.Configuration
+    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
+    .AddEnvironmentVariables();
+
+// Manually substitute ${VAR} placeholders in connection string
+var config = builder.Configuration;
+string connStr = config.GetConnectionString("DefaultConnection");
+
+foreach (var kvp in Environment.GetEnvironmentVariables().Cast<DictionaryEntry>())
+{
+    connStr = connStr.Replace($"${{{kvp.Key}}}", kvp.Value?.ToString());
+}
+
+builder.Configuration["ConnectionStrings:DefaultConnection"] = connStr;
+
+// Substitute ${VAR} placeholders in Jwt config
+var jwtConfig = config.GetSection("Jwt");
+foreach (var kvp in Environment.GetEnvironmentVariables().Cast<DictionaryEntry>())
+{
+    foreach (var jwtKeyName in new[] { "Key", "Issuer", "Audience", "ExpiryMinutes" })
+    {
+        var currentValue = jwtConfig[jwtKeyName];
+        if (!string.IsNullOrWhiteSpace(currentValue))
+            jwtConfig[jwtKeyName] = currentValue.Replace($"${{{kvp.Key}}}", kvp.Value?.ToString());
+    }
+}
+
+// Convert ExpiryMinutes to int safely
+int expiryMinutes = int.TryParse(jwtConfig["ExpiryMinutes"], out var val) ? val : 60;
 
 // Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
+
+
+// Swagger configuration with JWT support
+builder.Services.AddSwaggerGen(c =>
 {
-    // Add JWT Bearer authentication to Swagger
-    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
+        Description = "JWT Authorization header using the Bearer scheme. Example: 'Bearer {token}'",
         Name = "Authorization",
-        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
-        Scheme = "Bearer",
-        BearerFormat = "JWT",
-        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
-        Description = "Enter 'Bearer' [space] and then your valid token in the text input below.\r\n\r\nExample: \"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\""
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
     });
 
-    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            new OpenApiSecurityScheme
             {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                Reference = new OpenApiReference
                 {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
                 }
             },
@@ -46,22 +81,22 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Read-only repositories
+// Repositories
 builder.Services.AddScoped<IPersonRepository, PersonRepository>();
 builder.Services.AddScoped<IMovieRepository, MovieRepository>();
-builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
-
-// Keep existing UserRepository if required
 builder.Services.AddScoped<UserRepository>();
+builder.Services.AddScoped<INoteRepository, NoteRepository>();
 
 // JWT Authentication
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var key = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key")!);
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-}).AddJwtBearer(options =>
+})
+.AddJwtBearer(options =>
 {
     options.RequireHttpsMetadata = false;
     options.SaveToken = true;
@@ -77,6 +112,14 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+// Add authorization fallback so all endpoints require login unless [AllowAnonymous]
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
@@ -87,6 +130,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();

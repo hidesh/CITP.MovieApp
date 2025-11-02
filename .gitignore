@@ -362,9 +362,11 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 
-.gitattributes
+# Environment variables
+.env
 
-*.idea/
-
-# environment variables file
-CITP.MovieApp.Api/.env
+# IDE folders
+.idea/
+.vscode/
+**/.idea/
+.gitattributes/
