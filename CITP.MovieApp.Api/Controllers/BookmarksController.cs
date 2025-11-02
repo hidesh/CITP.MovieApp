@@ -56,7 +56,7 @@ namespace CITP.MovieApp.Api.Controllers
             
             // Validate that client-provided userId matches the token
             if (bookmarkDto.UserId != tokenUserId)
-                return Forbid("User ID mismatch");
+                return BadRequest(new { message = "User ID mismatch" });
             
             var newBookmark = await repo.AddBookmarkAsync(bookmarkDto.UserId, bookmarkDto.Tconst, bookmarkDto.Nconst);
             return Ok(newBookmark);
@@ -73,7 +73,7 @@ namespace CITP.MovieApp.Api.Controllers
 
             int userId = GetCurrentUserId();
             if (bookmark.UserId != userId)
-                return Forbid("You can only delete your own bookmarks");
+                return BadRequest(new { message = "You can only delete your own bookmarks" });
 
             // Attempt to delete the bookmark
             var deleted = await repo.DeleteByIdAsync(id);

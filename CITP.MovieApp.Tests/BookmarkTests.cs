@@ -212,7 +212,8 @@ namespace CITP.MovieApp.Tests
             var payloadJson = Encoding.UTF8.GetString(payloadBytes);
             var payloadObject = JsonConvert.DeserializeObject<JObject>(payloadJson);
             
-            return int.Parse(payloadObject?["userId"]?.ToString() ?? "0");
+            // Look for nameid (which is ClaimTypes.NameIdentifier) or userId
+            return int.Parse(payloadObject?["nameid"]?.ToString() ?? payloadObject?["userId"]?.ToString() ?? "0");
         }
 
         (JArray, HttpStatusCode) GetArray(string url)
