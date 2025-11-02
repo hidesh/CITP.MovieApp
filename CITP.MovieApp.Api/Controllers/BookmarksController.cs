@@ -3,6 +3,7 @@ using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Api.Utils;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using CITP.MovieApp.Application.DTOs;
 
 namespace CITP.MovieApp.Api.Controllers
 {
@@ -34,6 +35,31 @@ namespace CITP.MovieApp.Api.Controllers
                 next,
                 data = items
             });
+        }
+
+        [HttpGet("{bookmarkId}")]
+        [Authorize]
+        public async Task<IActionResult> GetById(int bookmarkId)
+        {
+            var bookmark = await repo.GetByIdAsync(bookmarkId);
+            if (bookmark == null) return NotFound();
+
+            return Ok(bookmark);
+        }
+
+        [HttpPost]
+        [Authorize]
+        public async Task<IActionResult> Add([FromBody] CreateBookmarkDto bookmarkDto)
+        {
+            // Get user ID from JWT token
+            int tokenUserId = GetCurrentUserId();
+            
+            // Validate that client-provided userId matches the token
+            if (bookmarkDto.UserId != tokenUserId)
+                return Forbid("User ID mismatch");
+            
+            var newBookmark = await repo.AddBookmarkAsync(bookmarkDto.UserId, bookmarkDto.Tconst, bookmarkDto.Nconst);
+            return Ok(newBookmark);
         }
 
         private int GetCurrentUserId()

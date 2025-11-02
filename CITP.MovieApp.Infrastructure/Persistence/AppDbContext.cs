@@ -71,6 +71,7 @@ namespace CITP.MovieApp.Infrastructure.Persistence
 
                 entity.HasOne(b => b.User).WithMany(u => u.Bookmarks).HasForeignKey(b => b.UserId);
                 entity.HasOne(b => b.Title).WithMany(t => t.Bookmarks).HasForeignKey(b => b.Tconst);
+                entity.HasOne(b => b.Person).WithMany(p => p.Bookmarks).HasForeignKey(b => b.Nconst);
             });
 
             /* ------------------------- RATING HISTORY ------------------------- */

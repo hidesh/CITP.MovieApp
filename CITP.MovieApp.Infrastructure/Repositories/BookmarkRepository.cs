@@ -57,41 +57,31 @@ namespace CITP.MovieApp.Infrastructure.Repositories
             }
         }
 
-        public async Task<BookmarkDto> AddForMovieAsync(CreateBookmarkDto bookmarkDto)
+        public async Task<BookmarkDto> AddBookmarkAsync(int userId, string? tconst, string? nconst)
         {
-            var bookmark = new Bookmark
-            {
-                UserId = bookmarkDto.UserId,
-                Tconst = bookmarkDto.Tconst
-            };
-            _dbSet.Add(bookmark);
-            await _context.SaveChangesAsync();
+            // Call the database function add_bookmark(userId, tconst, nconst)
+            await _context.Database.ExecuteSqlInterpolatedAsync($"SELECT add_bookmark({userId}, {tconst}, {nconst})");
+
+            // Fetch the newly created bookmark
+            var bookmark = await _dbSet
+                .Where(b => b.UserId == userId && 
+                           ((tconst != null && b.Tconst == tconst) || 
+                            (nconst != null && b.Nconst == nconst)))
+                .OrderByDescending(b => b.BookmarkedAt)
+                .FirstOrDefaultAsync();
+
+            if (bookmark == null)
+                throw new InvalidOperationException("Failed to create bookmark or bookmark not found");
+
             return new BookmarkDto
             {
                 BookmarkId = bookmark.BookmarkId,
                 UserId = bookmark.UserId,
                 Tconst = bookmark.Tconst,
-                BookmarkedAt = bookmark.BookmarkedAt
-            };
-        }
-
-        public async Task<BookmarkDto> AddForPersonAsync(CreateBookmarkDto bookmarkDto)
-        {
-            var bookmark = new Bookmark
-            {
-                UserId = bookmarkDto.UserId,
-                Nconst = bookmarkDto.Nconst
-            };
-            _dbSet.Add(bookmark);
-            await _context.SaveChangesAsync();
-            return new BookmarkDto
-            {
-                BookmarkId = bookmark.BookmarkId,
-                UserId = bookmark.UserId,
                 Nconst = bookmark.Nconst,
                 BookmarkedAt = bookmark.BookmarkedAt
             };
         }
-     
+       
     }
 }
