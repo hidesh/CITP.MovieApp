@@ -116,5 +116,18 @@ namespace CITP.MovieApp.Tests_.UnitTests
             var json = JObject.FromObject(created.Value!);
             Assert.Equal(123, (int)json["id"]!);
         }
+        
+        [Fact]
+        public async Task CreateForMovie_ReturnsBadRequest_WhenEmptyContent()
+        {
+            SetUser(10);
+            var dto = new NoteCreateDto { Content = " " };
+
+            var result = await _controller.CreateForMovie("tt999", dto);
+
+            var bad = Assert.IsType<BadRequestObjectResult>(result);
+            var json = JObject.FromObject(bad.Value!);
+            Assert.Equal("Content is required.", (string)json["message"]!);
+        }
     }
 }
