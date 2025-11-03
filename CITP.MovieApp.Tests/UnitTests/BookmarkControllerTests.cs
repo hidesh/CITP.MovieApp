@@ -63,7 +63,7 @@ namespace CITP.MovieApp.Tests_.UnitTests
             Assert.Equal(10, (int)json["pageSize"]!);
 
             var data = json["data"]!.ToObject<List<BookmarkDto>>();
-            Assert.Equal(10, data.Count);
+            Assert.Equal(10, data!.Count);
             Assert.Equal("tt0011", data.First().Tconst);
         }
 

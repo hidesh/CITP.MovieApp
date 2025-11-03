@@ -364,6 +364,7 @@ FodyWeavers.xsd
 
 # Environment variables
 .env
+appsettings.Test.json
 
 # IDE folders
 .idea/
