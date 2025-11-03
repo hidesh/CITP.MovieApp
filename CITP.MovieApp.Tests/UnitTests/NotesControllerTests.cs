@@ -129,5 +129,22 @@ namespace CITP.MovieApp.Tests_.UnitTests
             var json = JObject.FromObject(bad.Value!);
             Assert.Equal("Content is required.", (string)json["message"]!);
         }
+        
+        // --------------------------------
+        // POST /api/notes/person/{nconst}
+        // --------------------------------
+        [Fact]
+        public async Task CreateForPerson_ReturnsCreated_WhenValid()
+        {
+            SetUser(7);
+            var dto = new NoteCreateDto { Content = "Cool actor!" };
+            _repoMock.Setup(r => r.CreateForPersonAsync(7, "nm777", dto)).ReturnsAsync(321);
+
+            var result = await _controller.CreateForPerson("nm777", dto);
+
+            var created = Assert.IsType<CreatedAtActionResult>(result);
+            var json = JObject.FromObject(created.Value!);
+            Assert.Equal(321, (int)json["id"]!);
+        }
     }
 }
