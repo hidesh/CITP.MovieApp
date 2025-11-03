@@ -20,6 +20,19 @@ namespace CITP.MovieApp.Tests_.UnitTests
             _controller = new NotesController(_repoMock.Object);
         }
 
-      
+        private void SetUser(int userId = 1, bool authenticated = true)
+        {
+            var claims = new List<Claim>();
+            if (authenticated)
+                claims.Add(new Claim(ClaimTypes.NameIdentifier, userId.ToString()));
+
+            var identity = new ClaimsIdentity(claims, authenticated ? "TestAuth" : null);
+            var user = new ClaimsPrincipal(identity);
+
+            _controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = user }
+            };
+        }
     }
 }
