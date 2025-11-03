@@ -8,10 +8,9 @@ using CITP.MovieApp.Infrastructure.Persistence;
 
 namespace CITP.MovieApp.Tests_.Integration
 {
-   
-    /// Small WebApplicationFactory for integration testing.
-    /// Uses DB environmental keys for PostgreSQL from appsettings.test.json (like we have the appsettings.json before .env,
-    /// you'll have to set this up locally yourselves)
+
+    /// Simple WebApplicationFactory that uses a local PostgreSQL for testing
+    /// and rolls back all changes after each test.
     
     public class TestApplicationFactory : WebApplicationFactory<Program>, IAsyncLifetime
     {
@@ -23,50 +22,39 @@ namespace CITP.MovieApp.Tests_.Integration
         {
             builder.ConfigureAppConfiguration((context, config) =>
             {
-                // Load the regular and test-specific appsettings
-                config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                      .AddJsonFile("appsettings.Test.json", optional: true, reloadOnChange: true)
-                      .AddEnvironmentVariables();
+                config.AddJsonFile("appsettings.Test.json", optional: false, reloadOnChange: true);
             });
 
             builder.ConfigureServices((context, services) =>
             {
-                // Remove the existing DbContext registration
+                // Remove existing DbContext registration
                 var descriptor = services.SingleOrDefault(
                     d => d.ServiceType == typeof(DbContextOptions<AppDbContext>));
                 if (descriptor != null)
                     services.Remove(descriptor);
 
-                // Determine which connection string to use
-                var connectionString =
-                    context.Configuration.GetConnectionString("TestConnection") ??
-                    context.Configuration.GetConnectionString("DefaultConnection");
+                var connectionString = context.Configuration.GetConnectionString("TestConnection");
 
                 if (string.IsNullOrWhiteSpace(connectionString))
-                    throw new InvalidOperationException("No connection string found for integration testing.");
+                    throw new InvalidOperationException("TestConnection not found in appsettings.Test.json.");
 
-                // Register the real PostgreSQL context
                 services.AddDbContext<AppDbContext>(options =>
                     options.UseNpgsql(connectionString));
             });
         }
 
-        // ------------------------
-        //  Transaction Management
-        // ------------------------
-        
-        /// Begins a new database transaction before each test.
         public async Task InitializeAsync()
         {
             _scope = Services.CreateScope();
             _db = _scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+            // Ensure database exists before opening connection
+            await _db.Database.EnsureCreatedAsync();
+
             await _db.Database.OpenConnectionAsync();
             _transaction = await _db.Database.BeginTransactionAsync();
         }
 
-     
-        /// Rolls back the active database transaction after each test.
         public async Task DisposeAsync()
         {
             if (_transaction != null)
