@@ -18,4 +18,9 @@
 		<ProjectReference Include="..\CITP.MovieApp.Infrastructure\CITP.MovieApp.Infrastructure.csproj" />
 	</ItemGroup>
 
+    <ItemGroup>
+        <None Update="appsettings.Test.json" CopyToOutputDirectory="Always" />
+    </ItemGroup>
+
+
 </Project>

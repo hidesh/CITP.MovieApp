@@ -33,7 +33,7 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 {
                     Tconst = t.Tconst,
                     PrimaryTitle = t.PrimaryTitle,
-                    OriginalTitle = t.OriginalTitle,
+                    OriginalTitle = t.OriginalTitle ?? t.PrimaryTitle,
                     TitleType = t.TitleType,
                     IsAdult = t.IsAdult,
                     StartYear = t.StartYear,
@@ -51,7 +51,8 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 {
                     Tconst = t.Tconst,
                     PrimaryTitle = t.PrimaryTitle,
-                    OriginalTitle = t.OriginalTitle,
+                    // ✅ Same fallback for individual fetches
+                    OriginalTitle = t.OriginalTitle ?? t.PrimaryTitle,
                     TitleType = t.TitleType,
                     IsAdult = t.IsAdult,
                     StartYear = t.StartYear,
