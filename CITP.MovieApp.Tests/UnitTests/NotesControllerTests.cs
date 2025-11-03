@@ -81,5 +81,23 @@ namespace CITP.MovieApp.Tests_.UnitTests
             var returned = Assert.IsAssignableFrom<IEnumerable<NoteDto>>(ok.Value);
             Assert.Single(returned);
         }
+        
+        // --------------------------------
+        // GET /api/notes/person/{nconst}
+        // --------------------------------
+        [Fact]
+        public async Task GetPersonNotes_ReturnsOk_WithNotes()
+        {
+            SetUser(3);
+            var nconst = "nm123";
+            var notes = new List<NoteDto> { new() { NoteId = 5, Nconst = nconst, Content = "Actor note" } };
+            _repoMock.Setup(r => r.GetAllForUserByPersonAsync(3, nconst)).ReturnsAsync(notes);
+
+            var result = await _controller.GetPersonNotes(nconst);
+
+            var ok = Assert.IsType<OkObjectResult>(result);
+            var returned = Assert.IsAssignableFrom<IEnumerable<NoteDto>>(ok.Value);
+            Assert.Single(returned);
+        }
     }
 }
