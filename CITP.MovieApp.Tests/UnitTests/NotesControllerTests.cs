@@ -99,5 +99,22 @@ namespace CITP.MovieApp.Tests_.UnitTests
             var returned = Assert.IsAssignableFrom<IEnumerable<NoteDto>>(ok.Value);
             Assert.Single(returned);
         }
+        
+        // --------------------------------
+        // POST /api/notes/movie/{tconst}
+        // --------------------------------
+        [Fact]
+        public async Task CreateForMovie_ReturnsCreated_WhenValid()
+        {
+            SetUser(10);
+            var dto = new NoteCreateDto { Content = "Good movie!" };
+            _repoMock.Setup(r => r.CreateForMovieAsync(10, "tt999", dto)).ReturnsAsync(123);
+
+            var result = await _controller.CreateForMovie("tt999", dto);
+
+            var created = Assert.IsType<CreatedAtActionResult>(result);
+            var json = JObject.FromObject(created.Value!);
+            Assert.Equal(123, (int)json["id"]!);
+        }
     }
 }
