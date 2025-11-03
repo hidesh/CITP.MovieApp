@@ -47,6 +47,7 @@ int expiryMinutes = int.TryParse(jwtConfig["ExpiryMinutes"], out var val) ? val 
 // Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddHttpContextAccessor(); // For accessing HTTP context in repositories
 
 
 // Swagger configuration with JWT support
@@ -91,6 +92,7 @@ builder.Services.AddScoped<IMovieRepository, MovieRepository>();
 builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
 builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
+builder.Services.AddScoped<ISearchHistoryRepository, SearchHistoryRepository>();
 
 // JWT Authentication
 var jwtSection = builder.Configuration.GetSection("Jwt");

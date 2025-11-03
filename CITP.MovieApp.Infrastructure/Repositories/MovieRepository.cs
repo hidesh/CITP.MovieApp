@@ -6,6 +6,8 @@ using CITP.MovieApp.Infrastructure.Persistence;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 
 namespace CITP.MovieApp.Infrastructure.Repositories
 {
@@ -13,11 +15,15 @@ namespace CITP.MovieApp.Infrastructure.Repositories
     {
         private readonly AppDbContext _context;
         private readonly DbSet<Title> _dbSet;
+        private readonly ISearchHistoryRepository _searchHistoryRepository;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public MovieRepository(AppDbContext context)
+        public MovieRepository(AppDbContext context, ISearchHistoryRepository searchHistoryRepository, IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
             _dbSet = _context.Set<Title>();
+            _searchHistoryRepository = searchHistoryRepository;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<IEnumerable<TitleDto>> GetAllAsync()
@@ -39,7 +45,7 @@ namespace CITP.MovieApp.Infrastructure.Repositories
 
         public async Task<TitleDto?> GetByIdAsync(string tconst)
         {
-            return await _dbSet
+            var title = await _dbSet
                 .Where(t => t.Tconst == tconst)
                 .Select(t => new TitleDto
                 {
@@ -53,6 +59,38 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                     RuntimeMinutes = t.RuntimeMinutes
                 })
                 .FirstOrDefaultAsync();
+
+            // Add to search history if user is authenticated and title exists
+            if (title != null && IsUserAuthenticated())
+            {
+                try
+                {
+                    var userId = GetCurrentUserId();
+                    await _searchHistoryRepository.AddSearchHistoryAsync(userId, tconst);
+                }
+                catch
+                {
+                    // Silently ignore search history errors - don't break the main functionality
+                }
+            }
+
+            return title;
+        }
+
+        private bool IsUserAuthenticated()
+        {
+            return _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated == true;
+        }
+
+        private int GetCurrentUserId()
+        {
+            var userIdClaim = _httpContextAccessor.HttpContext?.User?.Claims
+                .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
+            
+            if (userIdClaim == null)
+                throw new UnauthorizedAccessException("User ID claim not found");
+
+            return int.Parse(userIdClaim.Value);
         }
 
         public async Task<IEnumerable<TitleCastCrewDto>> GetCastAndCrewAsync(string tconst)
