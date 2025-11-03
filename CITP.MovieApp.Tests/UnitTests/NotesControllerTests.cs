@@ -159,5 +159,45 @@ namespace CITP.MovieApp.Tests_.UnitTests
             var json = JObject.FromObject(bad.Value!);
             Assert.Equal("Content is required.", (string)json["message"]!);
         }
+        
+        // --------------------------------
+        // PUT /api/notes/{id}
+        // --------------------------------
+        [Fact]
+        public async Task Update_ReturnsNoContent_WhenSuccessful()
+        {
+            SetUser(5);
+            var dto = new NoteUpdateDto { Content = "Updated note!" };
+            _repoMock.Setup(r => r.UpdateAsync(42, 5, dto)).ReturnsAsync(true);
+
+            var result = await _controller.Update(42, dto);
+
+            Assert.IsType<NoContentResult>(result);
+        }
+
+        [Fact]
+        public async Task Update_ReturnsNotFound_WhenRepositoryReturnsFalse()
+        {
+            SetUser(5);
+            var dto = new NoteUpdateDto { Content = "Updated note!" };
+            _repoMock.Setup(r => r.UpdateAsync(99, 5, dto)).ReturnsAsync(false);
+
+            var result = await _controller.Update(99, dto);
+
+            Assert.IsType<NotFoundResult>(result);
+        }
+
+        [Fact]
+        public async Task Update_ReturnsBadRequest_WhenContentEmpty()
+        {
+            SetUser(5);
+            var dto = new NoteUpdateDto { Content = "" };
+
+            var result = await _controller.Update(42, dto);
+
+            var bad = Assert.IsType<BadRequestObjectResult>(result);
+            var json = JObject.FromObject(bad.Value!);
+            Assert.Equal("Content is required.", (string)json["message"]!);
+        }
     }
 }
