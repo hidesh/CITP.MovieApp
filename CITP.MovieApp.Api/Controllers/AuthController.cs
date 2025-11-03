@@ -68,6 +68,7 @@ namespace CITP.MovieApp.Api.Controllers
                 return Unauthorized(new { message = "Invalid Username and/or password" });
 
             var token = GenerateJwtToken(user);
+        
             return Ok(new { token });
         }
 
@@ -77,7 +78,7 @@ namespace CITP.MovieApp.Api.Controllers
             var jwtSection = _config.GetSection("Jwt");
 
             // Ensure the same encoding & key format as Program.cs
-            var keyBytes = Encoding.ASCII.GetBytes(jwtSection["Key"] ?? throw new Exception("JWT key missing"));
+            var keyBytes = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key") ?? throw new Exception("JWT key missing"));
             var signingKey = new SymmetricSecurityKey(keyBytes);
 
             var claims = new[]
