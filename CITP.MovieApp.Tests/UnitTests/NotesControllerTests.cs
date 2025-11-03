@@ -56,5 +56,12 @@ namespace CITP.MovieApp.Tests_.UnitTests
             var returned = Assert.IsAssignableFrom<IEnumerable<NoteDto>>(ok.Value);
             Assert.Equal(2, ((List<NoteDto>)returned).Count);
         }
+        
+        [Fact]
+        public async Task GetMyNotes_ThrowsUnauthorized_WhenUserMissing()
+        {
+            SetUser(authenticated: false);
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.GetMyNotes());
+        }
     }
 }
