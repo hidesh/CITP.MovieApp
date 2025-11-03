@@ -34,5 +34,27 @@ namespace CITP.MovieApp.Tests_.UnitTests
                 HttpContext = new DefaultHttpContext { User = user }
             };
         }
+        
+        // --------------------------------
+        // GET /api/notes/user
+        // --------------------------------
+        [Fact]
+        public async Task GetMyNotes_ReturnsOk_WithNotes()
+        {
+            SetUser(1);
+
+            var notes = new List<NoteDto>
+            {
+                new() { NoteId = 1, UserId = 1, Content = "Note A" },
+                new() { NoteId = 2, UserId = 1, Content = "Note B" }
+            };
+            _repoMock.Setup(r => r.GetAllForUserAsync(1)).ReturnsAsync(notes);
+
+            var result = await _controller.GetMyNotes();
+
+            var ok = Assert.IsType<OkObjectResult>(result);
+            var returned = Assert.IsAssignableFrom<IEnumerable<NoteDto>>(ok.Value);
+            Assert.Equal(2, ((List<NoteDto>)returned).Count);
+        }
     }
 }
