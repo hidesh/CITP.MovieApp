@@ -63,5 +63,23 @@ namespace CITP.MovieApp.Tests_.UnitTests
             SetUser(authenticated: false);
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _controller.GetMyNotes());
         }
+        
+        // --------------------------------
+        // GET /api/notes/movie/{tconst}
+        // --------------------------------
+        [Fact]
+        public async Task GetMovieNotes_ReturnsOk_WithNotes()
+        {
+            SetUser(2);
+            var tconst = "tt001";
+            var notes = new List<NoteDto> { new() { NoteId = 1, Tconst = tconst, Content = "Movie note" } };
+            _repoMock.Setup(r => r.GetAllForUserByMovieAsync(2, tconst)).ReturnsAsync(notes);
+
+            var result = await _controller.GetMovieNotes(tconst);
+
+            var ok = Assert.IsType<OkObjectResult>(result);
+            var returned = Assert.IsAssignableFrom<IEnumerable<NoteDto>>(ok.Value);
+            Assert.Single(returned);
+        }
     }
 }
