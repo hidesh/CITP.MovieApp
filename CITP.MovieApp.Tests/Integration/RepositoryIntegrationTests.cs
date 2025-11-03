@@ -4,7 +4,10 @@ using System.Threading.Tasks;
 using CITP.MovieApp.Domain.Entities;
 using CITP.MovieApp.Infrastructure.Persistence;
 using CITP.MovieApp.Infrastructure.Repositories;
+using CITP.MovieApp.Application.Abstractions;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using Xunit;
 
 namespace CITP.MovieApp.Tests_.Integration
@@ -26,9 +29,13 @@ namespace CITP.MovieApp.Tests_.Integration
         {
             var scope = factory.Services.CreateScope();
             _db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            
+            var mockSearchHistoryRepo = new Mock<ISearchHistoryRepository>();
+            var mockHttpContextAccessor = new Mock<IHttpContextAccessor>();
+            mockHttpContextAccessor.Setup(x => x.HttpContext).Returns((HttpContext?)null);
 
             _userRepo = new UserRepository(_db);
-            _movieRepo = new MovieRepository(_db);
+            _movieRepo = new MovieRepository(_db, mockSearchHistoryRepo.Object, mockHttpContextAccessor.Object);
             _personRepo = new PersonRepository(_db);
         }
 
@@ -67,7 +74,6 @@ namespace CITP.MovieApp.Tests_.Integration
         {
             var movies = await _movieRepo.GetAllAsync();
 
-            // There should be at least one movie already in DB
             Assert.NotNull(movies);
             Assert.True(movies.Any(), "Expected at least one movie in database.");
         }
@@ -75,10 +81,9 @@ namespace CITP.MovieApp.Tests_.Integration
         [Fact(DisplayName = "MovieRepository can fetch a movie by ID")]
         public async Task Get_Movie_By_Id()
         {
-            var movie = await _movieRepo.GetAllAsync();
-            var first = movie.FirstOrDefault();
+            var movies = await _movieRepo.GetAllAsync();
+            var first = movies.FirstOrDefault();
 
-            // If DB has at least one title, fetch it individually
             if (first != null)
             {
                 var fetched = await _movieRepo.GetByIdAsync(first.Tconst);
@@ -100,7 +105,6 @@ namespace CITP.MovieApp.Tests_.Integration
         {
             var people = await _personRepo.GetAllAsync();
 
-            // There should be at least one person in DB
             Assert.NotNull(people);
             Assert.True(people.Any(), "Expected at least one person in database.");
         }
@@ -119,7 +123,6 @@ namespace CITP.MovieApp.Tests_.Integration
             }
             else
             {
-                // Skip if no data in DB
                 Assert.True(true, "No person data to test against.");
             }
         }
