@@ -199,5 +199,30 @@ namespace CITP.MovieApp.Tests_.UnitTests
             var json = JObject.FromObject(bad.Value!);
             Assert.Equal("Content is required.", (string)json["message"]!);
         }
+        
+        // --------------------------------
+        // DELETE /api/notes/{id}
+        // --------------------------------
+        [Fact]
+        public async Task Delete_ReturnsNoContent_WhenSuccessful()
+        {
+            SetUser(4);
+            _repoMock.Setup(r => r.DeleteAsync(55, 4)).ReturnsAsync(true);
+
+            var result = await _controller.Delete(55);
+
+            Assert.IsType<NoContentResult>(result);
+        }
+
+        [Fact]
+        public async Task Delete_ReturnsNotFound_WhenRepositoryReturnsFalse()
+        {
+            SetUser(4);
+            _repoMock.Setup(r => r.DeleteAsync(77, 4)).ReturnsAsync(false);
+
+            var result = await _controller.Delete(77);
+
+            Assert.IsType<NotFoundResult>(result);
+        }
     }
 }
