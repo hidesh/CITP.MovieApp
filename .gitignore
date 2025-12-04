@@ -371,3 +371,5 @@ appsettings.Test.json
 .vscode/
 **/.idea/
 .gitattributes/
+
+notes.txt

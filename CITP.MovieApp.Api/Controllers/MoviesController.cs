@@ -58,5 +58,15 @@ namespace CITP.MovieApp.Api.Controllers
             var cast = await repo.GetCastAndCrewAsync(tconst);
             return Ok(cast);
         }
+
+        [HttpGet("series/{tconst}")]
+        public async Task<IActionResult> GetSeriesDetails(string tconst)
+        {
+            var seriesDetails = await repo.GetSeriesDetailsAsync(tconst);
+            if (seriesDetails == null)
+                return NotFound();
+
+            return Ok(seriesDetails);
+        }
     }
 }

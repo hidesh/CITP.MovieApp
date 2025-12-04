@@ -108,5 +108,33 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 })
                 .ToListAsync();
         }
+
+        public async Task<SeriesDetatailsDto?> GetSeriesDetailsAsync(string tconst)
+        {
+            var series = await _dbSet
+                .Where(t => t.Tconst == tconst && EF.Functions.Like(t.TitleType, "%Series%"))
+                .Select(t => new SeriesDetatailsDto
+                {
+                    Tconst = t.Tconst,
+                    NumberOfSeasons = _context.Episodes
+                        .Where(e => e.ParentSeriesId == t.Tconst && e.SeasonNumber > 0)
+                        .OrderByDescending(e => e.SeasonNumber)
+                        .Select(e => (int?)e.SeasonNumber)
+                        .FirstOrDefault() ?? 0,
+                    Plot = t.Metadatas!.Plot,
+                    PosterUrl = t.Metadatas.PosterUrl,
+                    Language = t.Metadatas.Language,
+                    RatedAge = t.Metadatas.Rated,
+                    ReleaseDate = t.Metadatas.Released,
+                    WriterNames = string.Join(", ", t.Roles!
+                        .Where(r => r.Job == "writer")
+                        .Select(r => r.Person!.PrimaryName)
+                        .Distinct()),
+                    Country = t.Metadatas.Country
+                })
+                .FirstOrDefaultAsync();
+
+            return series;
+        }
     }
 }

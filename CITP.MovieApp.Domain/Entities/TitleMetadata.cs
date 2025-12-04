@@ -22,7 +22,7 @@ namespace CITP.MovieApp.Domain.Entities
         public string? Language { get; set; }
 
         [Column("released")]
-        public DateTime? Released { get; set; }
+        public string? Released { get; set; }
 
         [Column("writer")]
         public string? Writer { get; set; }
@@ -32,6 +32,9 @@ namespace CITP.MovieApp.Domain.Entities
 
         [Column("production")]
         public string? Production { get; set; }
+    
+        [Column("poster")]
+        public string? PosterUrl { get; set; }
 
         // Navigation property
         [ForeignKey("Tconst")]

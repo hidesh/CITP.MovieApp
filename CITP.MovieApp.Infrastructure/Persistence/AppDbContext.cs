@@ -237,6 +237,7 @@ namespace CITP.MovieApp.Infrastructure.Persistence
                 entity.Property(e => e.Writer).HasColumnName("writer");
                 entity.Property(e => e.Country).HasColumnName("country");
                 entity.Property(e => e.Production).HasColumnName("production");
+                entity.Property(e => e.PosterUrl).HasColumnName("poster");
 
                 entity.HasOne(tm => tm.Title).WithOne(t => t.Metadatas).HasForeignKey<TitleMetadata>(tm => tm.Tconst);
             });
