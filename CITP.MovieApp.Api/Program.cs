@@ -18,6 +18,8 @@ builder.Configuration
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .AddEnvironmentVariables();
 
+
+
 // Manually substitute ${VAR} placeholders in connection string
 var config = builder.Configuration;
 string connStr = config.GetConnectionString("DefaultConnection");
@@ -53,6 +55,11 @@ builder.Services.AddHttpContextAccessor(); // For accessing HTTP context in repo
 // Swagger configuration with JWT support
 builder.Services.AddSwaggerGen(c =>
 {
+    // Enable XML documentation
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    c.IncludeXmlComments(xmlPath);
+
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token in the text input below. Example: 'Bearer 12345abcdef'",
@@ -129,12 +136,24 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
+// CORS policy for local frontend during development
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseCors("AllowFrontend");
 }
 
 app.UseAuthentication();
