@@ -101,6 +101,7 @@ builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
 builder.Services.AddScoped<IRatingRepository, RatingRepository>();
 builder.Services.AddScoped<ISearchHistoryRepository, SearchHistoryRepository>();
+builder.Services.AddScoped<ISearchRepository, SearchRepository>();
 
 // JWT Authentication
 var jwtSection = builder.Configuration.GetSection("Jwt");
