@@ -47,6 +47,34 @@ namespace CITP.MovieApp.Api.Controllers
             return Ok(bookmark);
         }
 
+        /// <summary>
+        /// Add a new bookmark for either a title (movie/series) or a person
+        /// </summary>
+        /// <remarks>
+        /// Provide either Tconst (for bookmarking a title) OR Nconst (for bookmarking a person), but not both.
+        /// 
+        /// Example for bookmarking a title:
+        /// 
+        ///     POST /api/bookmarks
+        ///     {
+        ///         "userId": 1,
+        ///         "tconst": "tt0111161",
+        ///         "nconst": null
+        ///     }
+        ///     
+        /// Example for bookmarking a person:
+        /// 
+        ///     POST /api/bookmarks
+        ///     {
+        ///         "userId": 1,
+        ///         "tconst": null,
+        ///         "nconst": "nm0000123"
+        ///     }
+        /// </remarks>
+        /// <param name="bookmarkDto">Bookmark data with either Tconst or Nconst</param>
+        /// <returns>The created bookmark</returns>
+        /// <response code="200">Returns the newly created bookmark</response>
+        /// <response code="400">If both or neither Tconst and Nconst are provided, or if user ID doesn't match token</response>
         [HttpPost]
         [Authorize]
         public async Task<IActionResult> Add([FromBody] CreateBookmarkDto bookmarkDto)
@@ -57,6 +85,11 @@ namespace CITP.MovieApp.Api.Controllers
             // Validate that client-provided userId matches the token
             if (bookmarkDto.UserId != tokenUserId)
                 return BadRequest(new { message = "User ID mismatch" });
+            
+            // Validate that exactly one of Tconst or Nconst is provided
+            if ((bookmarkDto.Tconst == null && bookmarkDto.Nconst == null) ||
+                (bookmarkDto.Tconst != null && bookmarkDto.Nconst != null))
+                return BadRequest(new { message = "Must provide either Tconst (for title) or Nconst (for person), but not both" });
             
             var newBookmark = await repo.AddBookmarkAsync(bookmarkDto.UserId, bookmarkDto.Tconst, bookmarkDto.Nconst);
             return Ok(newBookmark);

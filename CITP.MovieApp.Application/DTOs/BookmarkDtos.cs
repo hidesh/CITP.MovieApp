@@ -7,6 +7,8 @@ namespace CITP.MovieApp.Application.DTOs
         public string? Tconst { get; set; }
         public string? Nconst { get; set; }
         public DateTime BookmarkedAt { get; set; }
+        public string? Title { get; set; }
+        public string? PosterUrl { get; set; }
     }
     public class CreateBookmarkDto
     {

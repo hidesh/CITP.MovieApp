@@ -30,6 +30,9 @@ namespace CITP.MovieApp.Domain.Entities
         [Column("country")]
         public string? Country { get; set; }
 
+        [Column("poster")]
+        public string? Poster { get; set; }
+
         [Column("production")]
         public string? Production { get; set; }
 

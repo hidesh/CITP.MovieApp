@@ -68,8 +68,20 @@ namespace CITP.MovieApp.Api.Controllers
                 return Unauthorized(new { message = "Invalid Username and/or password" });
 
             var token = GenerateJwtToken(user);
+            var userInfo = new
+            {
+                userId = user.UserId,
+                username = user.Username,
+                email = user.Email
+            };
+
+            var returnObject = new
+            {
+                user = userInfo,
+                token
+            };
         
-            return Ok(new { token });
+            return Ok(returnObject);
         }
 
         // Token generation aligned with Program.cs

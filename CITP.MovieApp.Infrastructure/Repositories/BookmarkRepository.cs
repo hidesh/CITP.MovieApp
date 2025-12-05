@@ -27,7 +27,15 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                     UserId = b.UserId,
                     Tconst = b.Tconst,
                     Nconst = b.Nconst,
-                    BookmarkedAt = b.BookmarkedAt
+                    BookmarkedAt = b.BookmarkedAt,
+                    // Get title from either Title table (for movies/series) or Person table
+                    Title = b.Tconst != null 
+                        ? _context.Titles.Where(t => t.Tconst == b.Tconst).Select(t => t.PrimaryTitle).FirstOrDefault()
+                        : _context.Persons.Where(p => p.Nconst == b.Nconst).Select(p => p.PrimaryName).FirstOrDefault(),
+                    // Get poster only for titles (movies/series) from title_metadata, null for persons
+                    PosterUrl = b.Tconst != null
+                        ? _context.TitleMetadatas.Where(m => m.Tconst == b.Tconst).Select(m => m.Poster).FirstOrDefault()
+                        : null
                 })
                 .ToListAsync();
         }
@@ -42,7 +50,15 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                     UserId = b.UserId,
                     Tconst = b.Tconst,
                     Nconst = b.Nconst,
-                    BookmarkedAt = b.BookmarkedAt
+                    BookmarkedAt = b.BookmarkedAt,
+                    // Get title from either Title table (for movies/series) or Person table
+                    Title = b.Tconst != null 
+                        ? _context.Titles.Where(t => t.Tconst == b.Tconst).Select(t => t.PrimaryTitle).FirstOrDefault()
+                        : _context.Persons.Where(p => p.Nconst == b.Nconst).Select(p => p.PrimaryName).FirstOrDefault(),
+                    // Get poster only for titles (movies/series) from title_metadata, null for persons
+                    PosterUrl = b.Tconst != null
+                        ? _context.TitleMetadatas.Where(m => m.Tconst == b.Tconst).Select(m => m.Poster).FirstOrDefault()
+                        : null
                 })
                 .FirstOrDefaultAsync();
         }
