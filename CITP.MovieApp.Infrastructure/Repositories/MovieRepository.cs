@@ -38,7 +38,8 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                     IsAdult = t.IsAdult,
                     StartYear = t.StartYear,
                     EndYear = t.EndYear,
-                    RuntimeMinutes = t.RuntimeMinutes
+                    RuntimeMinutes = t.RuntimeMinutes,
+                    PosterUrl = t.Metadatas != null ? t.Metadatas.PosterUrl : null
                 })
                 .ToListAsync();
         }
@@ -94,19 +95,38 @@ namespace CITP.MovieApp.Infrastructure.Repositories
             return int.Parse(userIdClaim.Value);
         }
 
+        private string? CleanCharacterName(string? characterName)
+        {
+            if (string.IsNullOrEmpty(characterName))
+                return characterName;
+
+            // Remove Python-style list formatting: ['name'] -> name
+            var cleaned = characterName.Trim();
+            
+            // Check if it starts with [' and ends with ']
+            if (cleaned.StartsWith("['") && cleaned.EndsWith("']"))
+            {
+                // Remove [' from start and '] from end
+                cleaned = cleaned.Substring(2, cleaned.Length - 4);
+            }
+            
+            return cleaned;
+        }
+
         public async Task<IEnumerable<TitleCastCrewDto>> GetCastAndCrewAsync(string tconst)
         {
-            return await _context.Set<Role>()
+            var roles = await _context.Set<Role>()
                 .Where(r => r.Tconst == tconst)
                 .Include(r => r.Person)
-                .Select(r => new TitleCastCrewDto
-                {
-                    Nconst = r.Person!.Nconst,
-                    Name = r.Person.PrimaryName,
-                    Job = r.Job,
-                    CharacterName = r.CharacterName
-                })
                 .ToListAsync();
+
+            return roles.Select(r => new TitleCastCrewDto
+            {
+                Nconst = r.Person!.Nconst,
+                Name = r.Person.PrimaryName,
+                Job = r.Job,
+                CharacterName = CleanCharacterName(r.CharacterName)
+            });
         }
 
         public async Task<SeriesDetatailsDto?> GetSeriesDetailsAsync(string tconst)
@@ -116,25 +136,78 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 .Select(t => new SeriesDetatailsDto
                 {
                     Tconst = t.Tconst,
+                    SeriesTitle = t.PrimaryTitle,
                     NumberOfSeasons = _context.Episodes
                         .Where(e => e.ParentSeriesId == t.Tconst && e.SeasonNumber > 0)
                         .OrderByDescending(e => e.SeasonNumber)
                         .Select(e => (int?)e.SeasonNumber)
                         .FirstOrDefault() ?? 0,
-                    Plot = t.Metadatas!.Plot,
-                    PosterUrl = t.Metadatas.PosterUrl,
-                    Language = t.Metadatas.Language,
-                    RatedAge = t.Metadatas.Rated,
-                    ReleaseDate = t.Metadatas.Released,
+                    Plot = t.Metadatas!.Plot ?? "",
+                    PosterUrl = t.Metadatas.PosterUrl ?? "",
+                    Language = t.Metadatas.Language ?? "",
+                    RatedAge = t.Metadatas.Rated ?? "",
+                    ReleaseDate = t.Metadatas.Released ?? "",
                     WriterNames = string.Join(", ", t.Roles!
                         .Where(r => r.Job == "writer")
                         .Select(r => r.Person!.PrimaryName)
                         .Distinct()),
-                    Country = t.Metadatas.Country
+                    Country = t.Metadatas.Country ?? ""
                 })
                 .FirstOrDefaultAsync();
 
             return series;
+        }
+
+        public async Task<EpisodeDetailsDto?> GetEpisodeDetailsAsync(string tconst)
+        {
+            var episode = await _context.Episodes
+                .Where(e => e.Tconst == tconst)
+                .Select(e => new EpisodeDetailsDto
+                {
+                    Tconst = e.Tconst,
+                    EpisodeTitle = e.Title!.PrimaryTitle,
+                    SeasonNumber = e.SeasonNumber,
+                    EpisodeNumber = e.EpisodeNumber,
+                    Plot = e.Title!.Metadatas!.Plot ?? "",
+                    PosterUrl = e.Title.Metadatas.PosterUrl ?? "",
+                    ReleaseDate = e.Title.Metadatas.Released ?? "",
+                    WriterNames = string.Join(", ", e.Title.Roles!
+                        .Where(r => r.Job == "writer")
+                        .Select(r => r.Person!.PrimaryName)
+                        .Distinct()),
+                    ParentSeriesId = e.ParentSeriesId,
+                    ParentSeriesTitle = _context.Titles
+                        .Where(t => t.Tconst == e.ParentSeriesId)
+                        .Select(t => t.PrimaryTitle)
+                        .FirstOrDefault() ?? ""
+                })
+                .FirstOrDefaultAsync();
+
+            return episode;
+        }
+
+        public async Task<FilmDetailsDto?> GetFilmDetailsAsync(string tconst)
+        {
+            var film = await _dbSet
+                .Where(t => t.Tconst == tconst && (t.TitleType == "movie" || t.TitleType == "short"))
+                .Select(t => new FilmDetailsDto
+                {
+                    Tconst = t.Tconst,
+                    MovieTitle = t.PrimaryTitle,
+                    Plot = t.Metadatas!.Plot ?? "",
+                    PosterUrl = t.Metadatas.PosterUrl ?? "",
+                    Language = t.Metadatas.Language ?? "",
+                    RatedAge = t.Metadatas.Rated ?? "",
+                    ReleaseDate = t.Metadatas.Released ?? "",
+                    WriterNames = string.Join(", ", t.Roles!
+                        .Where(r => r.Job == "writer")
+                        .Select(r => r.Person!.PrimaryName)
+                        .Distinct()),
+                    Country = t.Metadatas.Country ?? ""
+                })
+                .FirstOrDefaultAsync();
+
+            return film;
         }
     }
 }

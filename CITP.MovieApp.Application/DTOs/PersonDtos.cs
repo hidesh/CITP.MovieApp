@@ -14,9 +14,10 @@ namespace CITP.MovieApp.Application.DTOs
         public string Tconst { get; set; } = null!; 
         public string Title { get; set; } = null!;
         
-        public string? Job { get; set; } 
-        public string? CharacterName { get; set; } 
+        public List<string> Jobs { get; set; } = new List<string>();
+        public List<string> Characters { get; set; } = new List<string>();
 
-        public int? StartYear { get; set; } 
+        public int? StartYear { get; set; }
+        public string? PosterUrl { get; set; }
     }
 }

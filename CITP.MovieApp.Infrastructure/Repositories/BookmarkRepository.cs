@@ -34,7 +34,7 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                         : _context.Persons.Where(p => p.Nconst == b.Nconst).Select(p => p.PrimaryName).FirstOrDefault(),
                     // Get poster only for titles (movies/series) from title_metadata, null for persons
                     PosterUrl = b.Tconst != null
-                        ? _context.TitleMetadatas.Where(m => m.Tconst == b.Tconst).Select(m => m.Poster).FirstOrDefault()
+                        ? _context.TitleMetadatas.Where(m => m.Tconst == b.Tconst).Select(m => m.PosterUrl).FirstOrDefault()
                         : null
                 })
                 .ToListAsync();
@@ -57,7 +57,7 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                         : _context.Persons.Where(p => p.Nconst == b.Nconst).Select(p => p.PrimaryName).FirstOrDefault(),
                     // Get poster only for titles (movies/series) from title_metadata, null for persons
                     PosterUrl = b.Tconst != null
-                        ? _context.TitleMetadatas.Where(m => m.Tconst == b.Tconst).Select(m => m.Poster).FirstOrDefault()
+                        ? _context.TitleMetadatas.Where(m => m.Tconst == b.Tconst).Select(m => m.PosterUrl).FirstOrDefault()
                         : null
                 })
                 .FirstOrDefaultAsync();

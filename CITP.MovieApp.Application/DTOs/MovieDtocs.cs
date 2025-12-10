@@ -10,6 +10,7 @@
         public int? StartYear { get; set; }
         public int? EndYear { get; set; }
         public int? RuntimeMinutes { get; set; }
+        public string? PosterUrl { get; set; }
     }
 
     public class TitleCastCrewDto
@@ -24,6 +25,7 @@
     public class SeriesDetatailsDto
     {
         public string Tconst { get; set; } = null!;
+        public string SeriesTitle { get; set; } = null!;
         public int NumberOfSeasons { get; set; }
         public string Plot { get; set; } = null!;
         public string PosterUrl { get; set; } = null!;
@@ -37,6 +39,7 @@
     public class EpisodeDetailsDto
     {
         public string Tconst { get; set; } = null!;
+        public string EpisodeTitle { get; set; } = null!;
         public int? SeasonNumber { get; set; }
         public int? EpisodeNumber { get; set; }
         public string Plot { get; set; } = null!;
@@ -44,11 +47,13 @@
         public string ReleaseDate { get; set; } = null!;
         public string WriterNames { get; set; } = null!;
         public string ParentSeriesId { get; set; } = null!;
+        public string ParentSeriesTitle { get; set; } = null!;
     }
 
     public class FilmDetailsDto
     {
         public string Tconst { get; set; } = null!;
+        public string MovieTitle { get; set; } = null!;
         public string Plot { get; set; } = null!;
         public string PosterUrl { get; set; } = null!;
         public string Language { get; set; } = null!;

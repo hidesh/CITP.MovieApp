@@ -8,5 +8,7 @@ namespace CITP.MovieApp.Application.Abstractions
         Task<TitleDto?> GetByIdAsync(string tconst);
         Task<IEnumerable<TitleCastCrewDto>> GetCastAndCrewAsync(string tconst);
         Task<SeriesDetatailsDto?> GetSeriesDetailsAsync(string tconst);
+        Task<EpisodeDetailsDto?> GetEpisodeDetailsAsync(string tconst);
+        Task<FilmDetailsDto?> GetFilmDetailsAsync(string tconst);
     }
 }

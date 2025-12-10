@@ -34,6 +34,57 @@ namespace CITP.MovieApp.Api.Controllers
             });
         }
 
+        /// <summary>
+        /// Get a specific title by its unique identifier (tconst)
+        /// </summary>
+        /// <param name="tconst">The unique title identifier (e.g., tt0000001)</param>
+        /// <returns>Returns detailed information about the title based on its type</returns>
+        /// <remarks>
+        /// This endpoint intelligently returns different information based on the title type:
+        /// 
+        /// **For TV Series** (titleType contains "Series"):
+        /// - tconst: Title identifier
+        /// - seriesTitle: Name of the series
+        /// - numberOfSeasons: Total number of seasons
+        /// - plot: Series plot summary
+        /// - posterUrl: Series poster image URL
+        /// - ratedAge: Age rating (e.g., "PG-13", "R")
+        /// - language: Primary language
+        /// - releaseDate: Original release date
+        /// - writerNames: Comma-separated list of writers
+        /// - country: Country of origin
+        /// 
+        /// **For TV Episodes** (titleType = "tvEpisode"):
+        /// - tconst: Episode identifier
+        /// - episodeTitle: Title of the episode
+        /// - seasonNumber: Season number
+        /// - episodeNumber: Episode number within season
+        /// - plot: Episode plot summary
+        /// - posterUrl: Episode poster image URL
+        /// - releaseDate: Episode air date
+        /// - writerNames: Comma-separated list of writers
+        /// - parentSeriesId: The tconst of the parent series
+        /// - parentSeriesTitle: The title of the parent series
+        /// 
+        /// **For Movies/Shorts** (titleType = "movie" or "short"):
+        /// - tconst: Title identifier
+        /// - movieTitle: Name of the movie
+        /// - plot: Movie plot summary
+        /// - posterUrl: Movie poster image URL
+        /// - ratedAge: Age rating (e.g., "PG-13", "R")
+        /// - language: Primary language
+        /// - releaseDate: Release date
+        /// - writerNames: Comma-separated list of writers
+        /// - country: Country of origin
+        /// 
+        /// Sample request:
+        /// 
+        ///     GET /api/movies/tt0133093
+        ///     
+        /// </remarks>
+        /// <response code="200">Returns the detailed title information</response>
+        /// <response code="401">If the title is adult-rated and user is not authenticated</response>
+        /// <response code="404">If the title is not found</response>
         [HttpGet("{tconst}")]
         public async Task<IActionResult> GetById(string tconst)
         {
@@ -49,6 +100,24 @@ namespace CITP.MovieApp.Api.Controllers
                     return Unauthorized(new { message = "Login required to access adult-rated titles." });
             }
 
+            // Return detailed information based on title type
+            if (title.TitleType != null && title.TitleType.Contains("Series", StringComparison.OrdinalIgnoreCase))
+            {
+                var seriesDetails = await repo.GetSeriesDetailsAsync(tconst);
+                return Ok(seriesDetails ?? (object)title);
+            }
+            else if (title.TitleType == "tvEpisode")
+            {
+                var episodeDetails = await repo.GetEpisodeDetailsAsync(tconst);
+                return Ok(episodeDetails ?? (object)title);
+            }
+            else if (title.TitleType == "movie" || title.TitleType == "short")
+            {
+                var filmDetails = await repo.GetFilmDetailsAsync(tconst);
+                return Ok(filmDetails ?? (object)title);
+            }
+
+            // Fallback to basic title info
             return Ok(title);
         }
 
@@ -57,16 +126,6 @@ namespace CITP.MovieApp.Api.Controllers
         {
             var cast = await repo.GetCastAndCrewAsync(tconst);
             return Ok(cast);
-        }
-
-        [HttpGet("series/{tconst}")]
-        public async Task<IActionResult> GetSeriesDetails(string tconst)
-        {
-            var seriesDetails = await repo.GetSeriesDetailsAsync(tconst);
-            if (seriesDetails == null)
-                return NotFound();
-
-            return Ok(seriesDetails);
         }
     }
 }

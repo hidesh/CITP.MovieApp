@@ -31,13 +31,10 @@ namespace CITP.MovieApp.Domain.Entities
         public string? Country { get; set; }
 
         [Column("poster")]
-        public string? Poster { get; set; }
+        public string? PosterUrl { get; set; }
 
         [Column("production")]
         public string? Production { get; set; }
-    
-        [Column("poster")]
-        public string? PosterUrl { get; set; }
 
         // Navigation property
         [ForeignKey("Tconst")]
