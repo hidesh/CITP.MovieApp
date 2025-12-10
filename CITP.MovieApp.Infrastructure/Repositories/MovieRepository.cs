@@ -3,6 +3,7 @@ using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Application.DTOs;
 using CITP.MovieApp.Domain.Entities;
 using CITP.MovieApp.Infrastructure.Persistence;
+using CITP.MovieApp.Infrastructure.Utils;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -313,7 +314,7 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 .ToListAsync());
 
             // Set title field and type-specific data
-            if (titleType.Contains("series") && titleType != "tvepisode")
+            if (TitleTypeHelper.IsSeries(title.TitleType))
             {
                 // TV Series or Mini Series
                 dto.SeriesTitle = title.PrimaryTitle;
@@ -325,7 +326,7 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                     .Select(e => (int?)e.SeasonNumber)
                     .FirstOrDefaultAsync() ?? 0;
             }
-            else if (titleType == "tvepisode")
+            else if (TitleTypeHelper.IsEpisode(title.TitleType))
             {
                 // TV Episode
                 var episode = await _context.Episodes
@@ -340,7 +341,7 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 dto.ParentSeriesId = episode?.ParentSeriesId ?? "";
                 dto.ParentSeriesTitle = episode?.ParentSeries?.PrimaryTitle ?? "";
             }
-            else
+            else if (TitleTypeHelper.IsMovie(title.TitleType))
             {
                 // Movie, Short, Video, TV Movie, etc.
                 dto.MovieTitle = title.PrimaryTitle;

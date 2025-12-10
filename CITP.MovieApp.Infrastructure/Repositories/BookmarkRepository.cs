@@ -3,6 +3,7 @@ using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Application.DTOs;
 using CITP.MovieApp.Domain.Entities;
 using CITP.MovieApp.Infrastructure.Persistence;
+using CITP.MovieApp.Infrastructure.Utils;
 
 namespace CITP.MovieApp.Infrastructure.Repositories
 {
@@ -17,50 +18,57 @@ namespace CITP.MovieApp.Infrastructure.Repositories
             _dbSet = _context.Set<Bookmark>();
         }
 
+        private static BookmarkDto CreateBookmarkDto(Bookmark b, AppDbContext context)
+        {
+            // Fetch the title and titleType first
+            var title = b.Tconst != null 
+                ? context.Titles.FirstOrDefault(t => t.Tconst == b.Tconst)
+                : null;
+            
+            var titleType = title?.TitleType;
+            
+            return new BookmarkDto
+            {
+                BookmarkId = b.BookmarkId,
+                UserId = b.UserId,
+                Tconst = b.Tconst,
+                Nconst = b.Nconst,
+                BookmarkedAt = b.BookmarkedAt,
+                
+                // For title bookmarks - use helper methods in memory after data is loaded
+                TitleType = titleType,
+                MovieTitle = TitleTypeHelper.IsMovie(titleType) ? title?.PrimaryTitle : null,
+                SeriesTitle = TitleTypeHelper.IsSeries(titleType) ? title?.PrimaryTitle : null,
+                EpisodeTitle = TitleTypeHelper.IsEpisode(titleType) ? title?.PrimaryTitle : null,
+                
+                // For person bookmarks
+                PersonName = b.Nconst != null 
+                    ? context.Persons.Where(p => p.Nconst == b.Nconst).Select(p => p.PrimaryName).FirstOrDefault()
+                    : null,
+                
+                // Get poster only for titles (movies/series) from title_metadata, null for persons
+                PosterUrl = b.Tconst != null
+                    ? context.TitleMetadatas.Where(m => m.Tconst == b.Tconst).Select(m => m.PosterUrl).FirstOrDefault()
+                    : null
+            };
+        }
+
         public async Task<IEnumerable<BookmarkDto>> GetAllAsync(int userId)
         {
-            return await _dbSet
+            var bookmarks = await _dbSet
                 .Where(b => b.UserId == userId)
-                .Select(b => new BookmarkDto
-                {
-                    BookmarkId = b.BookmarkId,
-                    UserId = b.UserId,
-                    Tconst = b.Tconst,
-                    Nconst = b.Nconst,
-                    BookmarkedAt = b.BookmarkedAt,
-                    // Get title from either Title table (for movies/series) or Person table
-                    Title = b.Tconst != null 
-                        ? _context.Titles.Where(t => t.Tconst == b.Tconst).Select(t => t.PrimaryTitle).FirstOrDefault()
-                        : _context.Persons.Where(p => p.Nconst == b.Nconst).Select(p => p.PrimaryName).FirstOrDefault(),
-                    // Get poster only for titles (movies/series) from title_metadata, null for persons
-                    PosterUrl = b.Tconst != null
-                        ? _context.TitleMetadatas.Where(m => m.Tconst == b.Tconst).Select(m => m.PosterUrl).FirstOrDefault()
-                        : null
-                })
                 .ToListAsync();
+
+            return bookmarks.Select(b => CreateBookmarkDto(b, _context)).ToList();
         }
 
         public async Task<BookmarkDto?> GetByIdAsync(int bookmarkId)
         {
-            return await _dbSet
+            var bookmark = await _dbSet
                 .Where(b => b.BookmarkId == bookmarkId)
-                .Select(b => new BookmarkDto
-                {
-                    BookmarkId = b.BookmarkId,
-                    UserId = b.UserId,
-                    Tconst = b.Tconst,
-                    Nconst = b.Nconst,
-                    BookmarkedAt = b.BookmarkedAt,
-                    // Get title from either Title table (for movies/series) or Person table
-                    Title = b.Tconst != null 
-                        ? _context.Titles.Where(t => t.Tconst == b.Tconst).Select(t => t.PrimaryTitle).FirstOrDefault()
-                        : _context.Persons.Where(p => p.Nconst == b.Nconst).Select(p => p.PrimaryName).FirstOrDefault(),
-                    // Get poster only for titles (movies/series) from title_metadata, null for persons
-                    PosterUrl = b.Tconst != null
-                        ? _context.TitleMetadatas.Where(m => m.Tconst == b.Tconst).Select(m => m.PosterUrl).FirstOrDefault()
-                        : null
-                })
                 .FirstOrDefaultAsync();
+
+            return bookmark != null ? CreateBookmarkDto(bookmark, _context) : null;
         }
 
         public async Task<bool> DeleteByIdAsync(int bookmarkId)
