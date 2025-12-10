@@ -3,6 +3,8 @@ using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Application.DTOs;
 using CITP.MovieApp.Domain.Entities;
 using CITP.MovieApp.Infrastructure.Persistence;
+using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 
 namespace CITP.MovieApp.Infrastructure.Repositories
 {
@@ -10,11 +12,13 @@ namespace CITP.MovieApp.Infrastructure.Repositories
     {
         private readonly AppDbContext _context;
         private readonly DbSet<Person> _dbSet;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public PersonRepository(AppDbContext context)
+        public PersonRepository(AppDbContext context, IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
             _dbSet = _context.Set<Person>();
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<IEnumerable<PersonDto>> GetAllAsync()
@@ -33,7 +37,7 @@ namespace CITP.MovieApp.Infrastructure.Repositories
 
         public async Task<PersonDto?> GetByIdAsync(string nconst)
         {
-            return await _dbSet
+            var person = await _dbSet
                 .Where(p => p.Nconst == nconst)
                 .Select(p => new PersonDto
                 {
@@ -44,6 +48,13 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                     PrimaryProfession = p.PrimaryProfession
                 })
                 .FirstOrDefaultAsync();
+
+            if (person != null)
+            {
+                person.UserBookmark = await GetUserPersonBookmarkDataAsync(nconst);
+            }
+
+            return person;
         }
 
         public async Task<IEnumerable<PersonFilmographyDto>> GetFilmographyAsync(string nconst)
@@ -90,6 +101,60 @@ namespace CITP.MovieApp.Infrastructure.Repositories
             }
             
             return cleaned;
+        }
+
+        private bool IsUserAuthenticated()
+        {
+            return _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated == true;
+        }
+
+        private int GetCurrentUserId()
+        {
+            var userIdClaim = _httpContextAccessor.HttpContext?.User?.Claims
+                .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
+
+            if (userIdClaim == null)
+                throw new UnauthorizedAccessException("User ID claim not found");
+
+            return int.Parse(userIdClaim.Value);
+        }
+
+        private async Task<UserPersonBookmarkDto?> GetUserPersonBookmarkDataAsync(string nconst)
+        {
+            if (!IsUserAuthenticated())
+                return null;
+
+            try
+            {
+                var userId = GetCurrentUserId();
+
+                // Get bookmark
+                var bookmark = await _context.Set<Bookmark>()
+                    .Where(b => b.UserId == userId && b.Nconst == nconst)
+                    .FirstOrDefaultAsync();
+
+                // Get note
+                var note = await _context.Set<Note>()
+                    .Where(n => n.UserId == userId && n.Nconst == nconst)
+                    .OrderByDescending(n => n.UpdatedAt ?? n.NotedAt)
+                    .FirstOrDefaultAsync();
+
+                // Only return data if at least one of them exists
+                if (bookmark == null && note == null)
+                    return null;
+
+                return new UserPersonBookmarkDto
+                {
+                    BookmarkId = bookmark?.BookmarkId,
+                    IsBookmarked = bookmark != null,
+                    Note = note?.Content
+                };
+            }
+            catch
+            {
+                // If anything goes wrong, just return null (don't break the main request)
+                return null;
+            }
         }
     }
 }

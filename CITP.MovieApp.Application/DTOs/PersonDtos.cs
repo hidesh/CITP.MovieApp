@@ -1,5 +1,12 @@
 namespace CITP.MovieApp.Application.DTOs
 {
+    public class UserPersonBookmarkDto
+    {
+        public int? BookmarkId { get; set; }
+        public bool IsBookmarked { get; set; }
+        public string? Note { get; set; }
+    }
+
     public class PersonDto
     {
         public string Nconst { get; set; } = null!;
@@ -7,6 +14,7 @@ namespace CITP.MovieApp.Application.DTOs
         public int? BirthYear { get; set; }
         public int? DeathYear { get; set; }
         public string? PrimaryProfession { get; set; }
+        public UserPersonBookmarkDto? UserBookmark { get; set; }
     }
 
     public class PersonFilmographyDto

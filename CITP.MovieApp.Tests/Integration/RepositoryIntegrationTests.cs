@@ -36,7 +36,7 @@ namespace CITP.MovieApp.Tests_.Integration
 
             _userRepo = new UserRepository(_db);
             _movieRepo = new MovieRepository(_db, mockSearchHistoryRepo.Object, mockHttpContextAccessor.Object);
-            _personRepo = new PersonRepository(_db);
+            _personRepo = new PersonRepository(_db, mockHttpContextAccessor.Object);
         }
 
         // ----------------------------

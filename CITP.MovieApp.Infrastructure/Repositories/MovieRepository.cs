@@ -113,6 +113,51 @@ namespace CITP.MovieApp.Infrastructure.Repositories
             return cleaned;
         }
 
+        private async Task<UserBookmarkDto?> GetUserBookmarkDataAsync(string tconst)
+        {
+            if (!IsUserAuthenticated())
+                return null;
+
+            try
+            {
+                var userId = GetCurrentUserId();
+
+                // Get bookmark
+                var bookmark = await _context.Set<Bookmark>()
+                    .Where(b => b.UserId == userId && b.Tconst == tconst)
+                    .FirstOrDefaultAsync();
+
+                // Get note
+                var note = await _context.Set<Note>()
+                    .Where(n => n.UserId == userId && n.Tconst == tconst)
+                    .OrderByDescending(n => n.UpdatedAt ?? n.NotedAt)
+                    .FirstOrDefaultAsync();
+
+                // Get rating
+                var rating = await _context.Set<RatingHistory>()
+                    .Where(r => r.UserId == userId && r.Tconst == tconst)
+                    .OrderByDescending(r => r.RatedAt)
+                    .FirstOrDefaultAsync();
+
+                // Only return data if at least one of them exists
+                if (bookmark == null && note == null && rating == null)
+                    return null;
+
+                return new UserBookmarkDto
+                {
+                    BookmarkId = bookmark?.BookmarkId,
+                    IsBookmarked = bookmark != null,
+                    Note = note?.Content,
+                    Rating = rating?.Rating
+                };
+            }
+            catch
+            {
+                // If anything goes wrong, just return null (don't break the main request)
+                return null;
+            }
+        }
+
         public async Task<IEnumerable<TitleCastCrewDto>> GetCastAndCrewAsync(string tconst)
         {
             var roles = await _context.Set<Role>()
@@ -155,6 +200,11 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 })
                 .FirstOrDefaultAsync();
 
+            if (series != null)
+            {
+                series.UserBookmark = await GetUserBookmarkDataAsync(tconst);
+            }
+
             return series;
         }
 
@@ -183,6 +233,11 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 })
                 .FirstOrDefaultAsync();
 
+            if (episode != null)
+            {
+                episode.UserBookmark = await GetUserBookmarkDataAsync(tconst);
+            }
+
             return episode;
         }
 
@@ -206,6 +261,11 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                     Country = t.Metadatas.Country ?? ""
                 })
                 .FirstOrDefaultAsync();
+
+            if (film != null)
+            {
+                film.UserBookmark = await GetUserBookmarkDataAsync(tconst);
+            }
 
             return film;
         }

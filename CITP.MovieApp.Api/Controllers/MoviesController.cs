@@ -53,6 +53,7 @@ namespace CITP.MovieApp.Api.Controllers
         /// - releaseDate: Original release date
         /// - writerNames: Comma-separated list of writers
         /// - country: Country of origin
+        /// - userBookmark: (authenticated users only) Object containing bookmarkId, isBookmarked, note, and rating
         /// 
         /// **For TV Episodes** (titleType = "tvEpisode"):
         /// - tconst: Episode identifier
@@ -65,6 +66,7 @@ namespace CITP.MovieApp.Api.Controllers
         /// - writerNames: Comma-separated list of writers
         /// - parentSeriesId: The tconst of the parent series
         /// - parentSeriesTitle: The title of the parent series
+        /// - userBookmark: (authenticated users only) Object containing bookmarkId, isBookmarked, note, and rating
         /// 
         /// **For Movies/Shorts** (titleType = "movie" or "short"):
         /// - tconst: Title identifier
@@ -76,6 +78,13 @@ namespace CITP.MovieApp.Api.Controllers
         /// - releaseDate: Release date
         /// - writerNames: Comma-separated list of writers
         /// - country: Country of origin
+        /// - userBookmark: (authenticated users only) Object containing bookmarkId, isBookmarked, note, and rating
+        /// 
+        /// **User Bookmark Object** (included only for authenticated users):
+        /// - bookmarkId: The ID of the bookmark (null if not bookmarked)
+        /// - isBookmarked: Boolean indicating if the title is bookmarked by the user
+        /// - note: The user's note content for this title (null if no note exists)
+        /// - rating: The user's rating for this title (null if not rated)
         /// 
         /// Sample request:
         /// 

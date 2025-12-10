@@ -1,5 +1,13 @@
 ﻿namespace CITP.MovieApp.Application.DTOs
 {
+    public class UserBookmarkDto
+    {
+        public int? BookmarkId { get; set; }
+        public bool IsBookmarked { get; set; }
+        public string? Note { get; set; }
+        public decimal? Rating { get; set; }
+    }
+
     public class TitleDto
     {
         public string Tconst { get; set; } = null!;
@@ -34,6 +42,7 @@
         public string ReleaseDate { get; set; } = null!;
         public string WriterNames { get; set; } = null!;
         public string Country { get; set; } = null!;
+        public UserBookmarkDto? UserBookmark { get; set; }
     }
 
     public class EpisodeDetailsDto
@@ -48,6 +57,7 @@
         public string WriterNames { get; set; } = null!;
         public string ParentSeriesId { get; set; } = null!;
         public string ParentSeriesTitle { get; set; } = null!;
+        public UserBookmarkDto? UserBookmark { get; set; }
     }
 
     public class FilmDetailsDto
@@ -61,5 +71,6 @@
         public string ReleaseDate { get; set; } = null!;
         public string WriterNames { get; set; } = null!;
         public string Country { get; set; } = null!;
+        public UserBookmarkDto? UserBookmark { get; set; }
     }   
 }
