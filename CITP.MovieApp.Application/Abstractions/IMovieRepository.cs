@@ -10,5 +10,6 @@ namespace CITP.MovieApp.Application.Abstractions
         Task<SeriesDetatailsDto?> GetSeriesDetailsAsync(string tconst);
         Task<EpisodeDetailsDto?> GetEpisodeDetailsAsync(string tconst);
         Task<FilmDetailsDto?> GetFilmDetailsAsync(string tconst);
+        Task<TitleDetailsDto?> GetTitleDetailsAsync(string tconst);
     }
 }

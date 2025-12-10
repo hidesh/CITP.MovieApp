@@ -269,5 +269,89 @@ namespace CITP.MovieApp.Infrastructure.Repositories
 
             return film;
         }
+
+        public async Task<TitleDetailsDto?> GetTitleDetailsAsync(string tconst)
+        {
+            // First get basic title info to determine type
+            var title = await _dbSet
+                .Where(t => t.Tconst == tconst)
+                .Include(t => t.Metadatas)
+                .FirstOrDefaultAsync();
+
+            if (title == null)
+                return null;
+
+            var titleType = title.TitleType?.ToLower() ?? "";
+
+            // Build the normalized DTO
+            var dto = new TitleDetailsDto
+            {
+                Tconst = title.Tconst,
+                TitleType = title.TitleType ?? "",
+                OriginalTitle = title.OriginalTitle ?? title.PrimaryTitle,
+                RatedAge = title.Metadatas?.Rated ?? "",
+                Language = title.Metadatas?.Language ?? "",
+                Country = title.Metadatas?.Country ?? "",
+                Plot = title.Metadatas?.Plot ?? "",
+                PosterUrl = title.Metadatas?.PosterUrl ?? "",
+                IsAdult = title.IsAdult
+            };
+
+            // Get genres
+            dto.Genres = await _context.Set<TitleGenre>()
+                .Where(tg => tg.TitleId == tconst)
+                .Include(tg => tg.Genre)
+                .Select(tg => tg.Genre!.GenreName)
+                .ToListAsync();
+
+            // Get writers
+            dto.WriterNames = string.Join(", ", await _context.Set<Role>()
+                .Where(r => r.Tconst == tconst && r.Job == "writer")
+                .Include(r => r.Person)
+                .Select(r => r.Person!.PrimaryName)
+                .Distinct()
+                .ToListAsync());
+
+            // Set title field and type-specific data
+            if (titleType.Contains("series") && titleType != "tvepisode")
+            {
+                // TV Series or Mini Series
+                dto.SeriesTitle = title.PrimaryTitle;
+                dto.StartYear = title.StartYear;
+                dto.EndYear = title.EndYear;
+                dto.NumberOfSeasons = await _context.Episodes
+                    .Where(e => e.ParentSeriesId == tconst && e.SeasonNumber > 0)
+                    .OrderByDescending(e => e.SeasonNumber)
+                    .Select(e => (int?)e.SeasonNumber)
+                    .FirstOrDefaultAsync() ?? 0;
+            }
+            else if (titleType == "tvepisode")
+            {
+                // TV Episode
+                var episode = await _context.Episodes
+                    .Where(e => e.Tconst == tconst)
+                    .Include(e => e.ParentSeries)
+                    .FirstOrDefaultAsync();
+
+                dto.EpisodeTitle = title.PrimaryTitle;
+                dto.ReleaseDate = title.Metadatas?.Released ?? "";
+                dto.SeasonNumber = episode?.SeasonNumber;
+                dto.EpisodeNumber = episode?.EpisodeNumber;
+                dto.ParentSeriesId = episode?.ParentSeriesId ?? "";
+                dto.ParentSeriesTitle = episode?.ParentSeries?.PrimaryTitle ?? "";
+            }
+            else
+            {
+                // Movie, Short, Video, TV Movie, etc.
+                dto.MovieTitle = title.PrimaryTitle;
+                dto.ReleaseDate = title.Metadatas?.Released ?? "";
+                dto.RuntimeMinutes = title.RuntimeMinutes;
+            }
+
+            // Get user bookmark data
+            dto.UserBookmark = await GetUserBookmarkDataAsync(tconst);
+
+            return dto;
+        }
     }
 }

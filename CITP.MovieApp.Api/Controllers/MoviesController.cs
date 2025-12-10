@@ -38,60 +38,45 @@ namespace CITP.MovieApp.Api.Controllers
         /// Get a specific title by its unique identifier (tconst)
         /// </summary>
         /// <param name="tconst">The unique title identifier (e.g., tt0000001)</param>
-        /// <returns>Returns detailed information about the title based on its type</returns>
+        /// <returns>Returns normalized detailed information about the title</returns>
         /// <remarks>
-        /// This endpoint intelligently returns different information based on the title type:
+        /// This endpoint returns a normalized response structure for all title types.
+        /// The frontend should check `titleType` to determine which fields are populated.
         /// 
-        /// **For TV Series** (titleType contains "Series"):
+        /// **Always included fields:**
         /// - tconst: Title identifier
-        /// - seriesTitle: Name of the series
-        /// - numberOfSeasons: Total number of seasons
-        /// - plot: Series plot summary
-        /// - posterUrl: Series poster image URL
+        /// - titleType: Type of title (movie, tvSeries, tvEpisode, short, video, tvMovie, etc.)
+        /// - originalTitle: Original title
         /// - ratedAge: Age rating (e.g., "PG-13", "R")
         /// - language: Primary language
-        /// - releaseDate: Original release date
-        /// - writerNames: Comma-separated list of writers
         /// - country: Country of origin
-        /// - userBookmark: (authenticated users only) Object containing bookmarkId, isBookmarked, note, and rating
-        /// 
-        /// **For TV Episodes** (titleType = "tvEpisode"):
-        /// - tconst: Episode identifier
-        /// - episodeTitle: Title of the episode
-        /// - seasonNumber: Season number
-        /// - episodeNumber: Episode number within season
-        /// - plot: Episode plot summary
-        /// - posterUrl: Episode poster image URL
-        /// - releaseDate: Episode air date
+        /// - genres: Array of genre names
+        /// - plot: Plot summary
+        /// - posterUrl: Poster image URL
         /// - writerNames: Comma-separated list of writers
-        /// - parentSeriesId: The tconst of the parent series
-        /// - parentSeriesTitle: The title of the parent series
-        /// - userBookmark: (authenticated users only) Object containing bookmarkId, isBookmarked, note, and rating
+        /// - isAdult: Boolean flag for adult content
+        /// - userBookmark: (authenticated users only) Object with bookmarkId, isBookmarked, note, rating
         /// 
-        /// **For Movies/Shorts** (titleType = "movie" or "short"):
-        /// - tconst: Title identifier
-        /// - movieTitle: Name of the movie
-        /// - plot: Movie plot summary
-        /// - posterUrl: Movie poster image URL
-        /// - ratedAge: Age rating (e.g., "PG-13", "R")
-        /// - language: Primary language
-        /// - releaseDate: Release date
-        /// - writerNames: Comma-separated list of writers
-        /// - country: Country of origin
-        /// - userBookmark: (authenticated users only) Object containing bookmarkId, isBookmarked, note, and rating
+        /// **Title field mapping (one of these will be populated):**
+        /// - movieTitle: For movie, short, video, tvMovie
+        /// - seriesTitle: For tvSeries, tvMiniSeries
+        /// - episodeTitle: For tvEpisode
         /// 
-        /// **User Bookmark Object** (included only for authenticated users):
-        /// - bookmarkId: The ID of the bookmark (null if not bookmarked)
-        /// - isBookmarked: Boolean indicating if the title is bookmarked by the user
-        /// - note: The user's note content for this title (null if no note exists)
-        /// - rating: The user's rating for this title (null if not rated)
+        /// **Date fields:**
+        /// - releaseDate: For movies and episodes (formatted date string)
+        /// - startYear + endYear: For series (integer years)
+        /// 
+        /// **Type-specific fields:**
+        /// - numberOfSeasons: For series
+        /// - seasonNumber, episodeNumber, parentSeriesId, parentSeriesTitle: For episodes
+        /// - runtimeMinutes: For movies
         /// 
         /// Sample request:
         /// 
         ///     GET /api/movies/tt0133093
         ///     
         /// </remarks>
-        /// <response code="200">Returns the detailed title information</response>
+        /// <response code="200">Returns the normalized title details</response>
         /// <response code="401">If the title is adult-rated and user is not authenticated</response>
         /// <response code="404">If the title is not found</response>
         [HttpGet("{tconst}")]
@@ -109,25 +94,9 @@ namespace CITP.MovieApp.Api.Controllers
                     return Unauthorized(new { message = "Login required to access adult-rated titles." });
             }
 
-            // Return detailed information based on title type
-            if (title.TitleType != null && title.TitleType.Contains("Series", StringComparison.OrdinalIgnoreCase))
-            {
-                var seriesDetails = await repo.GetSeriesDetailsAsync(tconst);
-                return Ok(seriesDetails ?? (object)title);
-            }
-            else if (title.TitleType == "tvEpisode")
-            {
-                var episodeDetails = await repo.GetEpisodeDetailsAsync(tconst);
-                return Ok(episodeDetails ?? (object)title);
-            }
-            else if (title.TitleType == "movie" || title.TitleType == "short")
-            {
-                var filmDetails = await repo.GetFilmDetailsAsync(tconst);
-                return Ok(filmDetails ?? (object)title);
-            }
-
-            // Fallback to basic title info
-            return Ok(title);
+            // Return normalized title details
+            var details = await repo.GetTitleDetailsAsync(tconst);
+            return Ok(details ?? (object)title);
         }
 
         [HttpGet("{tconst}/cast")]
