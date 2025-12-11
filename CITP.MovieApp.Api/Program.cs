@@ -7,7 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using CITP.MovieApp.Infrastructure.Repositories;
 using Microsoft.OpenApi.Models;
-using DotNetEnv; 
+using DotNetEnv;
+using Microsoft.AspNetCore.Http; // For HttpMethods, StatusCodes
+using System.Threading.Tasks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,8 +19,6 @@ DotNetEnv.Env.Load();
 builder.Configuration
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .AddEnvironmentVariables();
-
-
 
 // Manually substitute ${VAR} placeholders in connection string
 var config = builder.Configuration;
@@ -50,7 +50,6 @@ int expiryMinutes = int.TryParse(jwtConfig["ExpiryMinutes"], out var val) ? val 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddHttpContextAccessor(); // For accessing HTTP context in repositories
-
 
 // Swagger configuration with JWT support
 builder.Services.AddSwaggerGen(c =>
@@ -127,24 +126,51 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero // Remove default 5 minute clock skew
     };
+
+    // Ensure 401 responses produced by the JWT middleware include CORS headers
+    options.Events = new JwtBearerEvents
+    {
+        OnChallenge = context =>
+        {
+            try
+            {
+                if (!context.Response.HasStarted)
+                {
+                    var origin = context.Request.Headers["Origin"].ToString();
+                    if (!string.IsNullOrEmpty(origin))
+                    {
+                        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+                        context.Response.Headers["Vary"] = "Origin";
+                    }
+
+                    context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS";
+                    context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type";
+                    context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+                }
+            }
+            catch
+            {
+                // ignore, continue
+            }
+
+            return Task.CompletedTask;
+        }
+    };
 });
 
-// Add authorization fallback so all endpoints require login unless [AllowAnonymous]
-builder.Services.AddAuthorization(options =>
-{
-    options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
-        .RequireAuthenticatedUser()
-        .Build();
-});
+// 🔓 Authorization: remove global fallback policy.
+// Only endpoints with [Authorize] will require a logged in user.
+builder.Services.AddAuthorization();
 
 // CORS policy for local frontend during development
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        policy.WithOrigins("http://localhost:5174")
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
     });
 });
 
@@ -157,10 +183,38 @@ if (app.Environment.IsDevelopment())
     app.UseCors("AllowFrontend");
 }
 
+// Important: Use CORS before auth middleware
+app.UseCors("AllowFrontend");
+
+// Early OPTIONS handling to ensure preflight always returns CORS headers
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsOptions(context.Request.Method))
+    {
+        var origin = context.Request.Headers["Origin"].ToString();
+        if (!string.IsNullOrEmpty(origin))
+        {
+            context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+            context.Response.Headers["Vary"] = "Origin";
+        }
+
+        context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS";
+        context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type";
+        context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        await context.Response.CompleteAsync();
+        return;
+    }
+
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
 
 app.Run();
+
 public partial class Program { }
