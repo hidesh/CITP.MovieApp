@@ -148,7 +148,9 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                 {
                     BookmarkId = bookmark?.BookmarkId,
                     IsBookmarked = bookmark != null,
+                    NoteId = note?.NoteId,
                     Note = note?.Content,
+                    RatingId = rating?.RatingId,
                     Rating = rating?.Rating
                 };
             }

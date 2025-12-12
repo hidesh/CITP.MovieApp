@@ -20,6 +20,11 @@ namespace CITP.MovieApp.Application.DTOs
         public string Tconst { get; set; } = string.Empty;
         public decimal Rating { get; set; }
         public DateTime RatedAt { get; set; }
+        
+        // Title information
+        public string? TitleType { get; set; }
+        public string? Title { get; set; }
+        public string? PosterUrl { get; set; }
     }
 
     // For reading movie ratings (combines IMDb + user ratings)

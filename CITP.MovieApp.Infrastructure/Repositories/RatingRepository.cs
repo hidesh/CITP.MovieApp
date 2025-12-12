@@ -2,6 +2,7 @@ using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Application.DTOs;
 using CITP.MovieApp.Domain.Entities;
 using CITP.MovieApp.Infrastructure.Persistence;
+using CITP.MovieApp.Infrastructure.Utils;
 using Microsoft.EntityFrameworkCore;
 
 namespace CITP.MovieApp.Infrastructure.Repositories
@@ -18,18 +19,34 @@ namespace CITP.MovieApp.Infrastructure.Repositories
         // Get all ratings for a user
         public async Task<IEnumerable<RatingDto>> GetAllForUserAsync(int userId)
         {
-            return await _db.RatingHistories.AsNoTracking()
+            var ratings = await _db.RatingHistories.AsNoTracking()
                 .Where(r => r.UserId == userId)
                 .OrderByDescending(r => r.RatedAt)
-                .Select(r => new RatingDto
-                {
-                    RatingId = r.RatingId,
-                    UserId = r.UserId,
-                    Tconst = r.Tconst,
-                    Rating = r.Rating,
-                    RatedAt = r.RatedAt
-                })
                 .ToListAsync();
+
+            var result = new List<RatingDto>();
+            
+            foreach (var rating in ratings)
+            {
+                var title = await _db.Titles
+                    .Where(t => t.Tconst == rating.Tconst)
+                    .Include(t => t.Metadatas)
+                    .FirstOrDefaultAsync();
+
+                result.Add(new RatingDto
+                {
+                    RatingId = rating.RatingId,
+                    UserId = rating.UserId,
+                    Tconst = rating.Tconst,
+                    Rating = rating.Rating,
+                    RatedAt = rating.RatedAt,
+                    TitleType = title?.TitleType,
+                    Title = title?.PrimaryTitle,
+                    PosterUrl = title?.Metadatas?.PosterUrl
+                });
+            }
+
+            return result;
         }
 
         // Get all ratings for a user on a specific movie
