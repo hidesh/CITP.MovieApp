@@ -1,14 +1,15 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using CITP.MovieApp.Application.Abstractions;
 using CITP.MovieApp.Application.DTOs;
 using CITP.MovieApp.Domain.Entities;
 using CITP.MovieApp.Infrastructure.Persistence;
 using CITP.MovieApp.Infrastructure.Utils;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using System.Security.Claims;
 
 namespace CITP.MovieApp.Infrastructure.Repositories
 {
@@ -19,17 +20,25 @@ namespace CITP.MovieApp.Infrastructure.Repositories
         private readonly ISearchHistoryRepository _searchHistoryRepository;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public MovieRepository(AppDbContext context, ISearchHistoryRepository searchHistoryRepository, IHttpContextAccessor httpContextAccessor)
+        public MovieRepository(
+            AppDbContext context,
+            ISearchHistoryRepository searchHistoryRepository,
+            IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
-            _dbSet = _context.Set<Title>();
+            _dbSet = context.Set<Title>();
             _searchHistoryRepository = searchHistoryRepository;
             _httpContextAccessor = httpContextAccessor;
         }
 
+        // --------------------------------------------------------------------
+        // GET ALL TITLES (simple)
+        // --------------------------------------------------------------------
+
         public async Task<IEnumerable<TitleDto>> GetAllAsync()
         {
-            return await _dbSet
+            return await _dbSet.AsNoTracking()
+                .Include(t => t.Ratings)
                 .Select(t => new TitleDto
                 {
                     Tconst = t.Tconst,
@@ -40,107 +49,346 @@ namespace CITP.MovieApp.Infrastructure.Repositories
                     StartYear = t.StartYear,
                     EndYear = t.EndYear,
                     RuntimeMinutes = t.RuntimeMinutes,
-                    PosterUrl = t.Metadatas != null ? t.Metadatas.PosterUrl : null
+                    PosterUrl = t.Metadatas != null ? t.Metadatas.PosterUrl : null,
+                    Genres = t.TitleGenres != null 
+                        ? t.TitleGenres.Select(g => g.Genre.GenreName).ToArray()
+                        : Array.Empty<string>(),
+                    AverageRating = t.Ratings != null ? (double)t.Ratings.AverageRating : 0,
+                    NumVotes = t.Ratings != null ? t.Ratings.NumVotes : 0
+
                 })
                 .ToListAsync();
         }
 
+        // --------------------------------------------------------------------
+        // GET TITLE BY ID (simple)
+        // --------------------------------------------------------------------
+
         public async Task<TitleDto?> GetByIdAsync(string tconst)
         {
             var title = await _dbSet
+                .AsNoTracking()
                 .Where(t => t.Tconst == tconst)
-                .Select(t => new TitleDto
-                {
-                    Tconst = t.Tconst,
-                    PrimaryTitle = t.PrimaryTitle,
-                    // ✅ Same fallback for individual fetches
-                    OriginalTitle = t.OriginalTitle ?? t.PrimaryTitle,
-                    TitleType = t.TitleType,
-                    IsAdult = t.IsAdult,
-                    StartYear = t.StartYear,
-                    EndYear = t.EndYear,
-                    RuntimeMinutes = t.RuntimeMinutes
-                })
+                .Include(t => t.Ratings)
                 .FirstOrDefaultAsync();
 
-            // Add to search history if user is authenticated and title exists
-            if (title != null && IsUserAuthenticated())
+            if (title == null) return null;
+
+            return new TitleDto
             {
-                try
-                {
-                    var userId = GetCurrentUserId();
-                    await _searchHistoryRepository.AddSearchHistoryAsync(userId, tconst);
-                }
-                catch
-                {
-                    // Silently ignore search history errors - don't break the main functionality
-                }
+                Tconst = title.Tconst,
+                PrimaryTitle = title.PrimaryTitle,
+                OriginalTitle = title.OriginalTitle ?? title.PrimaryTitle,
+                TitleType = title.TitleType,
+                IsAdult = title.IsAdult,
+                StartYear = title.StartYear,
+                EndYear = title.EndYear,
+                RuntimeMinutes = title.RuntimeMinutes,
+                PosterUrl = title.Metadatas?.PosterUrl,
+                Genres = title.TitleGenres?.Select(g => g.Genre!.GenreName).ToArray(),
+                AverageRating = title.Ratings != null ? (double)title.Ratings.AverageRating : 0,
+                NumVotes = title.Ratings?.NumVotes ?? 0
+            };
+        }
+
+        // --------------------------------------------------------------------
+        // CAST & CREW
+        // --------------------------------------------------------------------
+
+        public async Task<IEnumerable<TitleCastCrewDto>> GetCastAndCrewAsync(string tconst)
+        {
+            var roles = await _context.Set<Role>()
+                .AsNoTracking()
+                .Where(r => r.Tconst == tconst)
+                .Include(r => r.Person)
+                .ToListAsync();
+
+            return roles.Select(r => new TitleCastCrewDto
+            {
+                Nconst = r.Person!.Nconst,
+                Name = r.Person.PrimaryName,
+                Job = r.Job,
+                CharacterName = r.CharacterName
+            });
+        }
+
+        // --------------------------------------------------------------------
+        // DETAILS — OPTION B (rewritten, robust, navigation-safe)
+        // --------------------------------------------------------------------
+
+        public async Task<FilmDetailsDto?> GetFilmDetailsAsync(string tconst)
+        {
+            var film = await _dbSet
+                .Where(t => t.Tconst == tconst && (t.TitleType == "movie" || t.TitleType == "short"))
+                .Include(t => t.Metadatas)
+                .Include(t => t.Roles).ThenInclude(r => r.Person)
+                .FirstOrDefaultAsync();
+
+            if (film == null) return null;
+
+            return new FilmDetailsDto
+            {
+                Tconst = film.Tconst,
+                MovieTitle = film.PrimaryTitle,
+                Plot = film.Metadatas?.Plot ?? "",
+                PosterUrl = film.Metadatas?.PosterUrl ?? "",
+                Language = film.Metadatas?.Language ?? "",
+                RatedAge = film.Metadatas?.Rated ?? "",
+                ReleaseDate = film.Metadatas?.Released ?? "",
+                WriterNames = string.Join(", ", film.Roles!.Where(r => r.Job == "writer").Select(r => r.Person!.PrimaryName).Distinct()),
+                Country = film.Metadatas?.Country ?? "",
+                UserBookmark = await GetUserBookmarkDataAsync(tconst)
+            };
+        }
+
+        public async Task<SeriesDetatailsDto?> GetSeriesDetailsAsync(string tconst)
+        {
+            var series = await _dbSet
+                .Where(t => t.Tconst == tconst && EF.Functions.Like(t.TitleType!, "%series%"))
+                .Include(t => t.Metadatas)
+                .Include(t => t.Roles).ThenInclude(r => r.Person)
+                .FirstOrDefaultAsync();
+
+            if (series == null) return null;
+
+            var seasonCount = await _context.Episodes
+                .Where(e => e.ParentSeriesId == tconst && e.SeasonNumber > 0)
+                .OrderByDescending(e => e.SeasonNumber)
+                .Select(e => (int?)e.SeasonNumber)
+                .FirstOrDefaultAsync() ?? 0;
+
+            return new SeriesDetatailsDto
+            {
+                Tconst = series.Tconst,
+                SeriesTitle = series.PrimaryTitle,
+                Plot = series.Metadatas?.Plot ?? "",
+                PosterUrl = series.Metadatas?.PosterUrl ?? "",
+                Language = series.Metadatas?.Language ?? "",
+                RatedAge = series.Metadatas?.Rated ?? "",
+                ReleaseDate = series.Metadatas?.Released ?? "",
+                Country = series.Metadatas?.Country ?? "",
+                NumberOfSeasons = seasonCount,
+                WriterNames = string.Join(", ", series.Roles!.Where(r => r.Job == "writer").Select(r => r.Person!.PrimaryName).Distinct()),
+                UserBookmark = await GetUserBookmarkDataAsync(tconst)
+            };
+        }
+
+        public async Task<EpisodeDetailsDto?> GetEpisodeDetailsAsync(string tconst)
+        {
+            var episode = await _context.Episodes
+                .Where(e => e.Tconst == tconst)
+                .Include(e => e.Title)!.ThenInclude(t => t!.Metadatas)
+                .Include(e => e.ParentSeries)
+                .Include(e => e.Title)!.ThenInclude(t => t!.Roles)!.ThenInclude(r => r.Person)
+                .FirstOrDefaultAsync();
+
+            if (episode == null) return null;
+
+            return new EpisodeDetailsDto
+            {
+                Tconst = episode.Tconst,
+                EpisodeTitle = episode.Title?.PrimaryTitle ?? "",
+                SeasonNumber = episode.SeasonNumber,
+                EpisodeNumber = episode.EpisodeNumber,
+                Plot = episode.Title?.Metadatas?.Plot ?? "",
+                PosterUrl = episode.Title?.Metadatas?.PosterUrl ?? "",
+                ReleaseDate = episode.Title?.Metadatas?.Released ?? "",
+                WriterNames = string.Join(", ", episode.Title!.Roles!.Where(r => r.Job == "writer").Select(r => r.Person!.PrimaryName)),
+                ParentSeriesId = episode.ParentSeriesId!,
+                ParentSeriesTitle = episode.ParentSeries?.PrimaryTitle ?? "",
+                UserBookmark = await GetUserBookmarkDataAsync(tconst)
+            };
+        }
+
+        // --------------------------------------------------------------------
+        // TITLE DETAILS (main details endpoint)
+        // --------------------------------------------------------------------
+
+        public async Task<TitleDetailsDto?> GetTitleDetailsAsync(string tconst)
+        {
+            var title = await _dbSet
+                .Where(t => t.Tconst == tconst)
+                .Include(t => t.Metadatas)
+                .Include(t => t.Roles)!.ThenInclude(r => r.Person)
+                .Include(t => t.TitleGenres)!.ThenInclude(tg => tg.Genre)
+                .Include(t => t.Ratings)
+                .FirstOrDefaultAsync();
+
+            if (title == null) return null;
+
+            var dto = new TitleDetailsDto
+            {
+                Tconst = title.Tconst,
+                TitleType = title.TitleType ?? "",
+                OriginalTitle = title.OriginalTitle ?? title.PrimaryTitle,
+                RatedAge = title.Metadatas?.Rated ?? "",
+                Language = title.Metadatas?.Language ?? "",
+                Country = title.Metadatas?.Country ?? "",
+                Plot = title.Metadatas?.Plot ?? "",
+                PosterUrl = title.Metadatas?.PosterUrl ?? "",
+                Genres = title.TitleGenres!.Select(g => g.Genre!.GenreName).ToList(),
+                IsAdult = title.IsAdult,
+                WriterNames = string.Join(", ", title.Roles!.Where(r => r.Job == "writer").Select(r => r.Person!.PrimaryName)),
+                UserBookmark = await GetUserBookmarkDataAsync(tconst)
+            };
+
+            // Movie
+            if (TitleTypeHelper.IsMovie(title.TitleType))
+            {
+                dto.MovieTitle = title.PrimaryTitle;
+                dto.ReleaseDate = title.Metadatas?.Released ?? "";
+                dto.RuntimeMinutes = title.RuntimeMinutes;
+            }
+            // Series
+            else if (TitleTypeHelper.IsSeries(title.TitleType))
+            {
+                dto.SeriesTitle = title.PrimaryTitle;
+                dto.StartYear = title.StartYear;
+                dto.EndYear = title.EndYear;
+                dto.NumberOfSeasons =
+                    await _context.Episodes
+                        .Where(e => e.ParentSeriesId == tconst)
+                        .OrderByDescending(e => e.SeasonNumber)
+                        .Select(e => (int?)e.SeasonNumber)
+                        .FirstOrDefaultAsync() ?? 0;
+            }
+            // Episode
+            else if (TitleTypeHelper.IsEpisode(title.TitleType))
+            {
+                var ep = await _context.Episodes
+                    .Where(e => e.Tconst == tconst)
+                    .Include(e => e.ParentSeries)
+                    .FirstOrDefaultAsync();
+
+                dto.EpisodeTitle = title.PrimaryTitle;
+                dto.ReleaseDate = title.Metadatas?.Released ?? "";
+                dto.SeasonNumber = ep?.SeasonNumber;
+                dto.EpisodeNumber = ep?.EpisodeNumber;
+                dto.ParentSeriesId = ep?.ParentSeriesId ?? "";
+                dto.ParentSeriesTitle = ep?.ParentSeries?.PrimaryTitle ?? "";
             }
 
-            return title;
+            return dto;
         }
 
-        private bool IsUserAuthenticated()
+        // --------------------------------------------------------------------
+        // PAGED LISTING WITH SORTING / FILTERING
+        // --------------------------------------------------------------------
+
+        public async Task<PagedResult<TitleDto>> ListPagedAsync(
+            int page,
+            int pageSize,
+            string? type = null,
+            string? genre = null,
+            string? sort = null)
         {
-            return _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated == true;
-        }
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
 
-        private int GetCurrentUserId()
-        {
-            var userIdClaim = _httpContextAccessor.HttpContext?.User?.Claims
-                .FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier);
-            
-            if (userIdClaim == null)
-                throw new UnauthorizedAccessException("User ID claim not found");
+            var q = _dbSet.AsNoTracking()
+                          .Include(t => t.Ratings)
+                          .Include(t => t.TitleGenres)!.ThenInclude(g => g.Genre)
+                          .AsQueryable();
 
-            return int.Parse(userIdClaim.Value);
-        }
-
-        private string? CleanCharacterName(string? characterName)
-        {
-            if (string.IsNullOrEmpty(characterName))
-                return characterName;
-
-            // Remove Python-style list formatting: ['name'] -> name
-            var cleaned = characterName.Trim();
-            
-            // Check if it starts with [' and ends with ']
-            if (cleaned.StartsWith("['") && cleaned.EndsWith("']"))
+            // Type filter
+            if (!string.IsNullOrWhiteSpace(type))
             {
-                // Remove [' from start and '] from end
-                cleaned = cleaned.Substring(2, cleaned.Length - 4);
+                var tnorm = type.Trim().ToLower();
+                if (tnorm == "movie" || tnorm == "movies")
+                    q = q.Where(t => t.TitleType!.ToLower() == "movie");
+                else if (tnorm == "series")
+                    q = q.Where(t => EF.Functions.Like(t.TitleType!, "%series%"));
             }
-            
-            return cleaned;
+
+            // Genre filter
+            if (!string.IsNullOrWhiteSpace(genre))
+            {
+                var gl = genre.ToLower().Trim();
+                q = q.Where(t => t.TitleGenres!.Any(g => g.Genre!.GenreName.ToLower() == gl));
+            }
+
+            // Sorting
+            switch (sort?.Trim().ToLower())
+            {
+                case "top-rated":
+                    q = q.Where(t => t.Ratings != null && t.Ratings.NumVotes >= 50)
+                         .OrderByDescending(t => t.Ratings!.AverageRating)
+                         .ThenBy(t => t.PrimaryTitle);
+                    break;
+
+                case "newest":
+                    q = q.OrderByDescending(t => t.StartYear ?? 0);
+                    break;
+
+                case "oldest":
+                    q = q.OrderBy(t => t.StartYear ?? 999999);
+                    break;
+
+                default:
+                    q = q.OrderBy(t => t.PrimaryTitle);
+                    break;
+            }
+
+            var total = await q.CountAsync();
+
+            var items = await q.Skip((page - 1) * pageSize)
+                               .Take(pageSize)
+                               .Select(t => new TitleDto
+                               {
+                                   Tconst = t.Tconst,
+                                   PrimaryTitle = t.PrimaryTitle,
+                                   OriginalTitle = t.OriginalTitle ?? t.PrimaryTitle,
+                                   TitleType = t.TitleType,
+                                   IsAdult = t.IsAdult,
+                                   StartYear = t.StartYear,
+                                   EndYear = t.EndYear,
+                                   RuntimeMinutes = t.RuntimeMinutes,
+                                   PosterUrl = t.Metadatas != null ? t.Metadatas.PosterUrl : null,
+                                   Genres = t.TitleGenres != null 
+                                       ? t.TitleGenres.Select(g => g.Genre.GenreName).ToArray()
+                                       : Array.Empty<string>(),
+                                   AverageRating = t.Ratings != null ? (double)t.Ratings.AverageRating : 0,
+                                   NumVotes = t.Ratings != null ? t.Ratings.NumVotes : 0
+
+                               })
+                               .ToArrayAsync();
+
+            return new PagedResult<TitleDto>
+            {
+                Items = items,
+                Total = total
+            };
         }
+
+        // --------------------------------------------------------------------
+        // USER BOOKMARK HELPER
+        // --------------------------------------------------------------------
 
         private async Task<UserBookmarkDto?> GetUserBookmarkDataAsync(string tconst)
         {
-            if (!IsUserAuthenticated())
+            var user = _httpContextAccessor.HttpContext?.User;
+            if (user?.Identity?.IsAuthenticated != true)
                 return null;
 
             try
             {
-                var userId = GetCurrentUserId();
+                var uid = int.Parse(user.Claims
+                    .First(c => c.Type == ClaimTypes.NameIdentifier).Value);
 
-                // Get bookmark
                 var bookmark = await _context.Set<Bookmark>()
-                    .Where(b => b.UserId == userId && b.Tconst == tconst)
+                    .Where(b => b.UserId == uid && b.Tconst == tconst)
                     .FirstOrDefaultAsync();
 
-                // Get note
                 var note = await _context.Set<Note>()
-                    .Where(n => n.UserId == userId && n.Tconst == tconst)
+                    .Where(n => n.UserId == uid && n.Tconst == tconst)
                     .OrderByDescending(n => n.UpdatedAt ?? n.NotedAt)
                     .FirstOrDefaultAsync();
 
-                // Get rating
                 var rating = await _context.Set<RatingHistory>()
-                    .Where(r => r.UserId == userId && r.Tconst == tconst)
+                    .Where(r => r.UserId == uid && r.Tconst == tconst)
                     .OrderByDescending(r => r.RatedAt)
                     .FirstOrDefaultAsync();
 
-                // Only return data if at least one of them exists
                 if (bookmark == null && note == null && rating == null)
                     return null;
 
@@ -154,205 +402,8 @@ namespace CITP.MovieApp.Infrastructure.Repositories
             }
             catch
             {
-                // If anything goes wrong, just return null (don't break the main request)
                 return null;
             }
-        }
-
-        public async Task<IEnumerable<TitleCastCrewDto>> GetCastAndCrewAsync(string tconst)
-        {
-            var roles = await _context.Set<Role>()
-                .Where(r => r.Tconst == tconst)
-                .Include(r => r.Person)
-                .ToListAsync();
-
-            return roles.Select(r => new TitleCastCrewDto
-            {
-                Nconst = r.Person!.Nconst,
-                Name = r.Person.PrimaryName,
-                Job = r.Job,
-                CharacterName = CleanCharacterName(r.CharacterName)
-            });
-        }
-
-        public async Task<SeriesDetatailsDto?> GetSeriesDetailsAsync(string tconst)
-        {
-            var series = await _dbSet
-                .Where(t => t.Tconst == tconst && EF.Functions.Like(t.TitleType, "%Series%"))
-                .Select(t => new SeriesDetatailsDto
-                {
-                    Tconst = t.Tconst,
-                    SeriesTitle = t.PrimaryTitle,
-                    NumberOfSeasons = _context.Episodes
-                        .Where(e => e.ParentSeriesId == t.Tconst && e.SeasonNumber > 0)
-                        .OrderByDescending(e => e.SeasonNumber)
-                        .Select(e => (int?)e.SeasonNumber)
-                        .FirstOrDefault() ?? 0,
-                    Plot = t.Metadatas!.Plot ?? "",
-                    PosterUrl = t.Metadatas.PosterUrl ?? "",
-                    Language = t.Metadatas.Language ?? "",
-                    RatedAge = t.Metadatas.Rated ?? "",
-                    ReleaseDate = t.Metadatas.Released ?? "",
-                    WriterNames = string.Join(", ", t.Roles!
-                        .Where(r => r.Job == "writer")
-                        .Select(r => r.Person!.PrimaryName)
-                        .Distinct()),
-                    Country = t.Metadatas.Country ?? ""
-                })
-                .FirstOrDefaultAsync();
-
-            if (series != null)
-            {
-                series.UserBookmark = await GetUserBookmarkDataAsync(tconst);
-            }
-
-            return series;
-        }
-
-        public async Task<EpisodeDetailsDto?> GetEpisodeDetailsAsync(string tconst)
-        {
-            var episode = await _context.Episodes
-                .Where(e => e.Tconst == tconst)
-                .Select(e => new EpisodeDetailsDto
-                {
-                    Tconst = e.Tconst,
-                    EpisodeTitle = e.Title!.PrimaryTitle,
-                    SeasonNumber = e.SeasonNumber,
-                    EpisodeNumber = e.EpisodeNumber,
-                    Plot = e.Title!.Metadatas!.Plot ?? "",
-                    PosterUrl = e.Title.Metadatas.PosterUrl ?? "",
-                    ReleaseDate = e.Title.Metadatas.Released ?? "",
-                    WriterNames = string.Join(", ", e.Title.Roles!
-                        .Where(r => r.Job == "writer")
-                        .Select(r => r.Person!.PrimaryName)
-                        .Distinct()),
-                    ParentSeriesId = e.ParentSeriesId,
-                    ParentSeriesTitle = _context.Titles
-                        .Where(t => t.Tconst == e.ParentSeriesId)
-                        .Select(t => t.PrimaryTitle)
-                        .FirstOrDefault() ?? ""
-                })
-                .FirstOrDefaultAsync();
-
-            if (episode != null)
-            {
-                episode.UserBookmark = await GetUserBookmarkDataAsync(tconst);
-            }
-
-            return episode;
-        }
-
-        public async Task<FilmDetailsDto?> GetFilmDetailsAsync(string tconst)
-        {
-            var film = await _dbSet
-                .Where(t => t.Tconst == tconst && (t.TitleType == "movie" || t.TitleType == "short"))
-                .Select(t => new FilmDetailsDto
-                {
-                    Tconst = t.Tconst,
-                    MovieTitle = t.PrimaryTitle,
-                    Plot = t.Metadatas!.Plot ?? "",
-                    PosterUrl = t.Metadatas.PosterUrl ?? "",
-                    Language = t.Metadatas.Language ?? "",
-                    RatedAge = t.Metadatas.Rated ?? "",
-                    ReleaseDate = t.Metadatas.Released ?? "",
-                    WriterNames = string.Join(", ", t.Roles!
-                        .Where(r => r.Job == "writer")
-                        .Select(r => r.Person!.PrimaryName)
-                        .Distinct()),
-                    Country = t.Metadatas.Country ?? ""
-                })
-                .FirstOrDefaultAsync();
-
-            if (film != null)
-            {
-                film.UserBookmark = await GetUserBookmarkDataAsync(tconst);
-            }
-
-            return film;
-        }
-
-        public async Task<TitleDetailsDto?> GetTitleDetailsAsync(string tconst)
-        {
-            // First get basic title info to determine type
-            var title = await _dbSet
-                .Where(t => t.Tconst == tconst)
-                .Include(t => t.Metadatas)
-                .FirstOrDefaultAsync();
-
-            if (title == null)
-                return null;
-
-            var titleType = title.TitleType?.ToLower() ?? "";
-
-            // Build the normalized DTO
-            var dto = new TitleDetailsDto
-            {
-                Tconst = title.Tconst,
-                TitleType = title.TitleType ?? "",
-                OriginalTitle = title.OriginalTitle ?? title.PrimaryTitle,
-                RatedAge = title.Metadatas?.Rated ?? "",
-                Language = title.Metadatas?.Language ?? "",
-                Country = title.Metadatas?.Country ?? "",
-                Plot = title.Metadatas?.Plot ?? "",
-                PosterUrl = title.Metadatas?.PosterUrl ?? "",
-                IsAdult = title.IsAdult
-            };
-
-            // Get genres
-            dto.Genres = await _context.Set<TitleGenre>()
-                .Where(tg => tg.TitleId == tconst)
-                .Include(tg => tg.Genre)
-                .Select(tg => tg.Genre!.GenreName)
-                .ToListAsync();
-
-            // Get writers
-            dto.WriterNames = string.Join(", ", await _context.Set<Role>()
-                .Where(r => r.Tconst == tconst && r.Job == "writer")
-                .Include(r => r.Person)
-                .Select(r => r.Person!.PrimaryName)
-                .Distinct()
-                .ToListAsync());
-
-            // Set title field and type-specific data
-            if (TitleTypeHelper.IsSeries(title.TitleType))
-            {
-                // TV Series or Mini Series
-                dto.SeriesTitle = title.PrimaryTitle;
-                dto.StartYear = title.StartYear;
-                dto.EndYear = title.EndYear;
-                dto.NumberOfSeasons = await _context.Episodes
-                    .Where(e => e.ParentSeriesId == tconst && e.SeasonNumber > 0)
-                    .OrderByDescending(e => e.SeasonNumber)
-                    .Select(e => (int?)e.SeasonNumber)
-                    .FirstOrDefaultAsync() ?? 0;
-            }
-            else if (TitleTypeHelper.IsEpisode(title.TitleType))
-            {
-                // TV Episode
-                var episode = await _context.Episodes
-                    .Where(e => e.Tconst == tconst)
-                    .Include(e => e.ParentSeries)
-                    .FirstOrDefaultAsync();
-
-                dto.EpisodeTitle = title.PrimaryTitle;
-                dto.ReleaseDate = title.Metadatas?.Released ?? "";
-                dto.SeasonNumber = episode?.SeasonNumber;
-                dto.EpisodeNumber = episode?.EpisodeNumber;
-                dto.ParentSeriesId = episode?.ParentSeriesId ?? "";
-                dto.ParentSeriesTitle = episode?.ParentSeries?.PrimaryTitle ?? "";
-            }
-            else if (TitleTypeHelper.IsMovie(title.TitleType))
-            {
-                // Movie, Short, Video, TV Movie, etc.
-                dto.MovieTitle = title.PrimaryTitle;
-                dto.ReleaseDate = title.Metadatas?.Released ?? "";
-                dto.RuntimeMinutes = title.RuntimeMinutes;
-            }
-
-            // Get user bookmark data
-            dto.UserBookmark = await GetUserBookmarkDataAsync(tconst);
-
-            return dto;
         }
     }
 }

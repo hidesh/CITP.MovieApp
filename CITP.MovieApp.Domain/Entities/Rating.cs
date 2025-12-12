@@ -2,7 +2,6 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CITP.MovieApp.Domain.Entities
-
 {
     [Table("rating")]
     public class Rating

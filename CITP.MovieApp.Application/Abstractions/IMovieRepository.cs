@@ -1,4 +1,6 @@
+using System.Threading.Tasks;
 using CITP.MovieApp.Application.DTOs;
+using System.Collections.Generic;
 
 namespace CITP.MovieApp.Application.Abstractions
 {
@@ -11,5 +13,8 @@ namespace CITP.MovieApp.Application.Abstractions
         Task<EpisodeDetailsDto?> GetEpisodeDetailsAsync(string tconst);
         Task<FilmDetailsDto?> GetFilmDetailsAsync(string tconst);
         Task<TitleDetailsDto?> GetTitleDetailsAsync(string tconst);
+
+        // signature: page, pageSize, type, genre, sort
+        Task<PagedResult<TitleDto>> ListPagedAsync(int page, int pageSize, string? type = null, string? genre = null, string? sort = null);
     }
 }

@@ -1,8 +1,8 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace CITP.MovieApp.Domain.Entities
-
 {
     [Table("title")]
     public class Title
@@ -49,6 +49,5 @@ namespace CITP.MovieApp.Domain.Entities
      
         public TitleMetadata? Metadatas { get; set; }    
         public ICollection<WordIndex>? WordIndexes { get; set; }      
-
     }
 }

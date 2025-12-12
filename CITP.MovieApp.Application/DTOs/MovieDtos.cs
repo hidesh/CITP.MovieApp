@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace CITP.MovieApp.Application.DTOs
 {
     public class UserBookmarkDto
@@ -19,15 +22,21 @@ namespace CITP.MovieApp.Application.DTOs
         public int? EndYear { get; set; }
         public int? RuntimeMinutes { get; set; }
         public string? PosterUrl { get; set; }
+
+        // Genres for list results
+        public string[]? Genres { get; set; }
+
+        // Global rating fields (Average + NumVotes)
+        public double AverageRating { get; set; }
+        public int NumVotes { get; set; }
     }
 
     public class TitleCastCrewDto
     {
-        public string Nconst { get; set; } = null!; 
+        public string Nconst { get; set; } = null!;
         public string Name { get; set; } = null!;
-
-        public string? Job { get; set; } 
-        public string? CharacterName { get; set; } 
+        public string? Job { get; set; }
+        public string? CharacterName { get; set; }
     }
 
     public class SeriesDetatailsDto
@@ -76,7 +85,6 @@ namespace CITP.MovieApp.Application.DTOs
 
     public class TitleDetailsDto
     {
-        // Always included
         public string Tconst { get; set; } = null!;
         public string TitleType { get; set; } = null!;
         public string OriginalTitle { get; set; } = null!;
@@ -90,26 +98,24 @@ namespace CITP.MovieApp.Application.DTOs
         public bool IsAdult { get; set; }
         public UserBookmarkDto? UserBookmark { get; set; }
 
-        // Title field (one of these based on titleType)
         public string? MovieTitle { get; set; }
         public string? SeriesTitle { get; set; }
         public string? EpisodeTitle { get; set; }
 
-        // Date fields
-        public string? ReleaseDate { get; set; }  // For movies/episodes
-        public int? StartYear { get; set; }       // For series
-        public int? EndYear { get; set; }         // For series
-
-        // Series-specific
+        public string? ReleaseDate { get; set; }
+        public int? StartYear { get; set; }
+        public int? EndYear { get; set; }
         public int? NumberOfSeasons { get; set; }
-
-        // Episode-specific
         public int? SeasonNumber { get; set; }
         public int? EpisodeNumber { get; set; }
         public string? ParentSeriesId { get; set; }
         public string? ParentSeriesTitle { get; set; }
-
-        // Movie-specific
         public int? RuntimeMinutes { get; set; }
-    }   
+    }
+
+    public class PagedResult<T>
+    {
+        public T[] Items { get; set; } = Array.Empty<T>();
+        public int Total { get; set; }
+    }
 }

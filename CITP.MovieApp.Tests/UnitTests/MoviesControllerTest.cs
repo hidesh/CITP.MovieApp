@@ -12,28 +12,38 @@ namespace CITP.MovieApp.Tests_.UnitTests
     public class MoviesControllerTests
     {
         private readonly Mock<IMovieRepository> _repoMock;
+        private readonly Mock<IHttpContextAccessor> _httpMock;
         private readonly MoviesController _controller;
 
         public MoviesControllerTests()
         {
             _repoMock = new Mock<IMovieRepository>();
-            _controller = new MoviesController(_repoMock.Object)
+
+            // Provide default HttpContext for link generation
+            var defaultHttpContext = new DefaultHttpContext();
+            defaultHttpContext.Request.Scheme = "http";
+            defaultHttpContext.Request.Host = new HostString("localhost");
+
+            _httpMock = new Mock<IHttpContextAccessor>();
+            _httpMock.Setup(h => h.HttpContext).Returns(defaultHttpContext);
+
+            _controller = new MoviesController(_repoMock.Object, _httpMock.Object)
             {
                 ControllerContext = new ControllerContext
                 {
-                    HttpContext = new DefaultHttpContext()
+                    HttpContext = defaultHttpContext
                 }
             };
         }
 
-        // -------------------------------
+        // --------------------------------------------------------------------
         // GET /api/movies
-        // -------------------------------
+        // --------------------------------------------------------------------
 
         [Fact]
         public async Task Get_ReturnsOk_WithPagedData()
         {
-            // Arrange
+            // Arrange test data
             var titles = Enumerable.Range(1, 50).Select(i => new TitleDto
             {
                 Tconst = $"tt{i:D5}",
@@ -41,7 +51,12 @@ namespace CITP.MovieApp.Tests_.UnitTests
                 IsAdult = false
             }).ToList();
 
-            _repoMock.Setup(r => r.GetAllAsync()).ReturnsAsync(titles);
+            _repoMock.Setup(r => r.ListPagedAsync(2, 10, null, null, null))
+                .ReturnsAsync(new PagedResult<TitleDto>
+                {
+                    Items = titles.Skip(10).Take(10).ToArray(),
+                    Total = 50
+                });
 
             // Act
             var result = await _controller.Get(page: 2, pageSize: 10);
@@ -59,13 +74,17 @@ namespace CITP.MovieApp.Tests_.UnitTests
         [Fact]
         public async Task Get_ReturnsDefaultPageSize_WhenInvalidPageSize()
         {
-            // Arrange
             var titles = new List<TitleDto>
             {
                 new() { Tconst = "tt0001", PrimaryTitle = "Test Movie" }
             };
 
-            _repoMock.Setup(r => r.GetAllAsync()).ReturnsAsync(titles);
+            _repoMock.Setup(r => r.ListPagedAsync(1, 20, null, null, null))
+                .ReturnsAsync(new PagedResult<TitleDto>
+                {
+                    Items = titles.ToArray(),
+                    Total = 1
+                });
 
             // Act
             var result = await _controller.Get(page: 1, pageSize: -5);
@@ -73,70 +92,83 @@ namespace CITP.MovieApp.Tests_.UnitTests
             // Assert
             var ok = Assert.IsType<OkObjectResult>(result);
             var json = JObject.FromObject(ok.Value!);
-
-            Assert.Equal(20, (int)json["pageSize"]!); // defaulted
+            Assert.Equal(20, (int)json["pageSize"]!);
         }
 
-        // -------------------------------
+        // --------------------------------------------------------------------
         // GET /api/movies/{tconst}
-        // -------------------------------
+        // --------------------------------------------------------------------
 
         [Fact]
         public async Task GetById_ReturnsOk_WhenTitleExists_AndNotAdult()
         {
-            // Arrange
-            var title = new TitleDto { Tconst = "tt0001", PrimaryTitle = "Normal Movie", IsAdult = false };
+            var title = new TitleDto
+            {
+                Tconst = "tt0001",
+                PrimaryTitle = "Normal Movie",
+                IsAdult = false
+            };
+
             _repoMock.Setup(r => r.GetByIdAsync("tt0001")).ReturnsAsync(title);
 
-            // Act
             var result = await _controller.GetById("tt0001");
 
-            // Assert
             var ok = Assert.IsType<OkObjectResult>(result);
             var returned = Assert.IsType<TitleDto>(ok.Value);
             Assert.Equal("Normal Movie", returned.PrimaryTitle);
         }
 
         [Fact]
-        public async Task GetById_ReturnsUnauthorized_WhenAdultAndUserNotAuthenticated()
+        public async Task GetById_ReturnsUnauthorized_WhenAdult_AndUserNotAuthenticated()
         {
-            // Arrange
-            var adultTitle = new TitleDto { Tconst = "tt0999", PrimaryTitle = "Adult Movie", IsAdult = true };
+            var adultTitle = new TitleDto
+            {
+                Tconst = "tt0999",
+                PrimaryTitle = "Adult Movie",
+                IsAdult = true
+            };
+
             _repoMock.Setup(r => r.GetByIdAsync("tt0999")).ReturnsAsync(adultTitle);
 
-            var httpContext = new DefaultHttpContext
+            var ctx = new DefaultHttpContext
             {
-                User = new ClaimsPrincipal(new ClaimsIdentity()) // not logged in
+                User = new ClaimsPrincipal(new ClaimsIdentity()) // no authentication
             };
-            _controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+            _controller.ControllerContext.HttpContext = ctx;
 
-            // Act
             var result = await _controller.GetById("tt0999");
 
-            // Assert
             var unauthorized = Assert.IsType<UnauthorizedObjectResult>(result);
             var json = JObject.FromObject(unauthorized.Value!);
             Assert.Equal("Login required to access adult-rated titles.", (string)json["message"]!);
         }
 
         [Fact]
-        public async Task GetById_ReturnsOk_WhenAdultAndUserAuthenticated()
+        public async Task GetById_ReturnsOk_WhenAdult_AndUserAuthenticated()
         {
-            // Arrange
-            var adultTitle = new TitleDto { Tconst = "tt0999", PrimaryTitle = "Adult Movie", IsAdult = true };
+            var adultTitle = new TitleDto
+            {
+                Tconst = "tt0999",
+                PrimaryTitle = "Adult Movie",
+                IsAdult = true
+            };
+
             _repoMock.Setup(r => r.GetByIdAsync("tt0999")).ReturnsAsync(adultTitle);
 
-            var identity = new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, "testuser") }, "TestAuth");
-            var httpContext = new DefaultHttpContext
+            var identity = new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.Name, "tester")
+            }, authenticationType: "mock");
+
+            var ctx = new DefaultHttpContext
             {
                 User = new ClaimsPrincipal(identity)
             };
-            _controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
 
-            // Act
+            _controller.ControllerContext.HttpContext = ctx;
+
             var result = await _controller.GetById("tt0999");
 
-            // Assert
             var ok = Assert.IsType<OkObjectResult>(result);
             var returned = Assert.IsType<TitleDto>(ok.Value);
             Assert.Equal("Adult Movie", returned.PrimaryTitle);
@@ -145,24 +177,20 @@ namespace CITP.MovieApp.Tests_.UnitTests
         [Fact]
         public async Task GetById_ReturnsNotFound_WhenMissing()
         {
-            // Arrange
             _repoMock.Setup(r => r.GetByIdAsync("tt9999")).ReturnsAsync((TitleDto?)null);
 
-            // Act
             var result = await _controller.GetById("tt9999");
 
-            // Assert
             Assert.IsType<NotFoundResult>(result);
         }
 
-        // -------------------------------
+        // --------------------------------------------------------------------
         // GET /api/movies/{tconst}/cast
-        // -------------------------------
+        // --------------------------------------------------------------------
 
         [Fact]
-        public async Task GetCast_ReturnsOk_WithCastList()
+        public async Task GetCast_ReturnsOk_WithCast()
         {
-            // Arrange
             var cast = new List<TitleCastCrewDto>
             {
                 new() { Nconst = "nm0001", Name = "Actor One", CharacterName = "Hero" },
@@ -171,13 +199,11 @@ namespace CITP.MovieApp.Tests_.UnitTests
 
             _repoMock.Setup(r => r.GetCastAndCrewAsync("tt0001")).ReturnsAsync(cast);
 
-            // Act
             var result = await _controller.GetCast("tt0001");
 
-            // Assert
             var ok = Assert.IsType<OkObjectResult>(result);
-            var returnedCast = Assert.IsAssignableFrom<IEnumerable<TitleCastCrewDto>>(ok.Value);
-            Assert.Equal(2, returnedCast.Count());
+            var returned = Assert.IsAssignableFrom<IEnumerable<TitleCastCrewDto>>(ok.Value);
+            Assert.Equal(2, returned.Count());
         }
     }
 }

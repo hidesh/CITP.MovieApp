@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Text;
 using CITP.MovieApp.Application.Abstractions;
@@ -19,6 +20,24 @@ DotNetEnv.Env.Load();
 builder.Configuration
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
     .AddEnvironmentVariables();
+
+// Local helper to decide whether an origin is allowed (loopback/localhost)
+static bool IsAllowedLocalhostOrigin(string origin)
+{
+    if (string.IsNullOrWhiteSpace(origin)) return false;
+    try
+    {
+        var uri = new Uri(origin);
+        // Accept explicit localhost and IPv4/IPv6 loopback addresses
+        if (uri.IsLoopback) return true;
+        if (string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+    catch
+    {
+        return false;
+    }
+}
 
 // Manually substitute ${VAR} placeholders in connection string
 var config = builder.Configuration;
@@ -137,7 +156,7 @@ builder.Services.AddAuthentication(options =>
                 if (!context.Response.HasStarted)
                 {
                     var origin = context.Request.Headers["Origin"].ToString();
-                    if (!string.IsNullOrEmpty(origin))
+                    if (!string.IsNullOrEmpty(origin) && IsAllowedLocalhostOrigin(origin))
                     {
                         context.Response.Headers["Access-Control-Allow-Origin"] = origin;
                         context.Response.Headers["Vary"] = "Origin";
@@ -163,16 +182,24 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 
 // CORS policy for local frontend during development
+// Allow any localhost / loopback origin (any port), while still supporting credentials.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5174")
+        policy
+            .SetIsOriginAllowed(origin =>
+            {
+                return IsAllowedLocalhostOriginsFallback(origin);
+            })
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
     });
 });
+
+// Local wrapper used by AddCors lambda to avoid closure capture warnings in some analyzers
+static bool IsAllowedLocalhostOriginsFallback(string origin) => IsAllowedLocalhostOrigin(origin);
 
 var app = builder.Build();
 
@@ -192,7 +219,7 @@ app.Use(async (context, next) =>
     if (HttpMethods.IsOptions(context.Request.Method))
     {
         var origin = context.Request.Headers["Origin"].ToString();
-        if (!string.IsNullOrEmpty(origin))
+        if (!string.IsNullOrEmpty(origin) && IsAllowedLocalhostOrigin(origin))
         {
             context.Response.Headers["Access-Control-Allow-Origin"] = origin;
             context.Response.Headers["Vary"] = "Origin";
