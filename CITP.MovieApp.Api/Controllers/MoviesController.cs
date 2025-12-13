@@ -96,5 +96,14 @@ namespace CITP.MovieApp.Api.Controllers
             var cast = await _repo.GetCastAndCrewAsync(tconst) ?? Enumerable.Empty<TitleCastCrewDto>();
             return Ok(cast);
         }
+        
+        [HttpGet("{tconst}/episodes")]
+        public async Task<IActionResult> GetEpisodesForSeries(string tconst)
+        {
+            var episodes = await _repo.GetEpisodesForSeriesAsync(tconst);
+            return Ok(episodes);
+        }
+
+
     }
 }
