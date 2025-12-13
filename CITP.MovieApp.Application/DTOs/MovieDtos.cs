@@ -7,7 +7,9 @@ namespace CITP.MovieApp.Application.DTOs
     {
         public int? BookmarkId { get; set; }
         public bool IsBookmarked { get; set; }
+        public int? NoteId { get; set; }
         public string? Note { get; set; }
+        public int? RatingId { get; set; }
         public decimal? Rating { get; set; }
     }
 

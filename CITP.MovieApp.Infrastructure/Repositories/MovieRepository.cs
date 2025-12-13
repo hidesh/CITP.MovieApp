@@ -420,7 +420,9 @@ public async Task<TitleDetailsDto?> GetTitleDetailsAsync(string tconst)
                 {
                     BookmarkId = bookmark?.BookmarkId,
                     IsBookmarked = bookmark != null,
+                    NoteId = note?.NoteId,
                     Note = note?.Content,
+                    RatingId = rating?.RatingId,
                     Rating = rating?.Rating
                 };
             }
