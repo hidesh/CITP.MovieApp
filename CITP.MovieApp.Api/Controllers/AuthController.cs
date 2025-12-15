@@ -29,18 +29,15 @@ namespace CITP.MovieApp.Api.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> Register(RegisterRequest req)
         {
-            // Validate email format
             if (!IsValidEmail(req.Email))
                 return BadRequest(new { message = "Invalid email format" });
 
-            // Check if username or email already exists
             if (await _users.GetByUsernameAsync(req.Username) != null)
                 return BadRequest(new { message = "Username already exists" });
 
             if (await _users.GetByEmailAsync(req.Email) != null)
                 return BadRequest(new { message = "Email already exists" });
 
-            // Hash password securely
             var hashedPassword = HashPassword(req.Password);
 
             var user = new User
@@ -63,34 +60,49 @@ namespace CITP.MovieApp.Api.Controllers
         {
             var user = await _users.GetByUsernameAsync(req.Username);
 
-            // Unified error message
             if (user == null || !VerifyPassword(req.Password, user.PasswordHash))
                 return Unauthorized(new { message = "Invalid Username and/or password" });
 
             var token = GenerateJwtToken(user);
-            var userInfo = new
+
+            return Ok(new
+            {
+                user = new
+                {
+                    userId = user.UserId,
+                    username = user.Username,
+                    email = user.Email
+                },
+                token
+            });
+        }
+
+        // ✅ REQUIRED BY FRONTEND
+        [HttpGet("me")]
+        [Authorize]
+        public async Task<IActionResult> Me()
+        {
+            var idClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (idClaim == null) return Unauthorized();
+
+            if (!int.TryParse(idClaim.Value, out var userId))
+                return Unauthorized();
+
+            var user = await _users.GetByIdAsync(userId);
+            if (user == null) return Unauthorized();
+
+            return Ok(new
             {
                 userId = user.UserId,
                 username = user.Username,
                 email = user.Email
-            };
-
-            var returnObject = new
-            {
-                user = userInfo,
-                token
-            };
-        
-            return Ok(returnObject);
+            });
         }
 
-        // Token generation aligned with Program.cs
         private string GenerateJwtToken(User user)
         {
             var jwtSection = _config.GetSection("Jwt");
-
-            // Ensure the same encoding & key format as Program.cs
-            var keyBytes = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key") ?? throw new Exception("JWT key missing"));
+            var keyBytes = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key")!);
             var signingKey = new SymmetricSecurityKey(keyBytes);
 
             var claims = new[]
@@ -101,8 +113,6 @@ namespace CITP.MovieApp.Api.Controllers
             };
 
             var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
-
-            // Use safe int parse with fallback
             int expiryMinutes = int.TryParse(jwtSection["ExpiryMinutes"], out var val) ? val : 60;
 
             var tokenDescriptor = new SecurityTokenDescriptor
@@ -114,31 +124,25 @@ namespace CITP.MovieApp.Api.Controllers
                 Audience = jwtSection["Audience"]
             };
 
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
+            var handler = new JwtSecurityTokenHandler();
+            var token = handler.CreateToken(tokenDescriptor);
+            return handler.WriteToken(token);
         }
 
-        // SHA256 hashing
         private static string HashPassword(string password)
         {
             using var sha = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(password);
-            var hash = sha.ComputeHash(bytes);
-            return Convert.ToBase64String(hash);
+            return Convert.ToBase64String(sha.ComputeHash(Encoding.UTF8.GetBytes(password)));
         }
 
         private bool VerifyPassword(string password, string storedHash)
         {
-            var hashOfInput = HashPassword(password);
-            return hashOfInput == storedHash;
+            return HashPassword(password) == storedHash;
         }
 
-        // Basic email validation
         private static bool IsValidEmail(string email)
         {
-            var regex = MyRegex();
-            return regex.IsMatch(email);
+            return MyRegex().IsMatch(email);
         }
 
         [GeneratedRegex(@"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
