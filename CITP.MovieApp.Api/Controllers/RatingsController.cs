@@ -55,7 +55,7 @@ namespace CITP.MovieApp.Api.Controllers
                 return BadRequest(new { message = "Rating must be between 0 and 10." });
 
             var userId = GetUserIdOrThrow();
-            var id = await _ratings.CreateForMovieAsync(userId, tconst, dto);
+            var id = await _ratings.CreateOrUpdateForMovieAsync(userId, tconst, dto);
             return CreatedAtAction(nameof(GetMovieRatings), new { tconst }, new { id });
         }
 

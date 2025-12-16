@@ -9,7 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using CITP.MovieApp.Infrastructure.Repositories;
 using Microsoft.OpenApi.Models;
 using DotNetEnv;
-using Microsoft.AspNetCore.Http; // For HttpMethods, StatusCodes
+using Microsoft.AspNetCore.Http;
 using System.Threading.Tasks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,7 +28,6 @@ static bool IsAllowedLocalhostOrigin(string origin)
     try
     {
         var uri = new Uri(origin);
-        // Accept explicit localhost and IPv4/IPv6 loopback addresses
         if (uri.IsLoopback) return true;
         if (string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)) return true;
         return false;
@@ -39,9 +38,9 @@ static bool IsAllowedLocalhostOrigin(string origin)
     }
 }
 
-// Manually substitute ${VAR} placeholders in connection string
+// Substitute ${VAR} placeholders in connection string
 var config = builder.Configuration;
-string connStr = config.GetConnectionString("DefaultConnection");
+string connStr = config.GetConnectionString("DefaultConnection")!;
 
 foreach (var kvp in Environment.GetEnvironmentVariables().Cast<DictionaryEntry>())
 {
@@ -62,30 +61,25 @@ foreach (var kvp in Environment.GetEnvironmentVariables().Cast<DictionaryEntry>(
     }
 }
 
-// Convert ExpiryMinutes to int safely
-int expiryMinutes = int.TryParse(jwtConfig["ExpiryMinutes"], out var val) ? val : 60;
-
 // Add services
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddHttpContextAccessor(); // For accessing HTTP context in repositories
+builder.Services.AddHttpContextAccessor();
 
-// Swagger configuration with JWT support
+// Swagger
 builder.Services.AddSwaggerGen(c =>
 {
-    // Enable XML documentation
     var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     c.IncludeXmlComments(xmlPath);
 
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Enter 'Bearer' [space] and then your token in the text input below. Example: 'Bearer 12345abcdef'",
+        Description = "JWT Authorization header using the Bearer scheme.",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
+        Scheme = "bearer"
     });
 
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -97,31 +91,28 @@ builder.Services.AddSwaggerGen(c =>
                 {
                     Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
-                },
-                Scheme = "oauth2",
-                Name = "Bearer",
-                In = ParameterLocation.Header
+                }
             },
             new List<string>()
         }
     });
 });
 
-// DbContext - PostgreSQL
+// DbContext
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Repositories
+builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<IPersonRepository, PersonRepository>();
 builder.Services.AddScoped<IMovieRepository, MovieRepository>();
 builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
-builder.Services.AddScoped<UserRepository>();
 builder.Services.AddScoped<INoteRepository, NoteRepository>();
 builder.Services.AddScoped<IRatingRepository, RatingRepository>();
 builder.Services.AddScoped<ISearchHistoryRepository, SearchHistoryRepository>();
 builder.Services.AddScoped<ISearchRepository, SearchRepository>();
 
-// JWT Authentication
+// JWT
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var key = Encoding.ASCII.GetBytes(jwtSection.GetValue<string>("Key")!);
 
@@ -139,67 +130,28 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(key),
         ValidateIssuer = true,
-        ValidIssuer = jwtSection.GetValue<string>("Issuer"),
+        ValidIssuer = jwtSection["Issuer"],
         ValidateAudience = true,
-        ValidAudience = jwtSection.GetValue<string>("Audience"),
+        ValidAudience = jwtSection["Audience"],
         ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero // Remove default 5 minute clock skew
-    };
-
-    // Ensure 401 responses produced by the JWT middleware include CORS headers
-    options.Events = new JwtBearerEvents
-    {
-        OnChallenge = context =>
-        {
-            try
-            {
-                if (!context.Response.HasStarted)
-                {
-                    var origin = context.Request.Headers["Origin"].ToString();
-                    if (!string.IsNullOrEmpty(origin) && IsAllowedLocalhostOrigin(origin))
-                    {
-                        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
-                        context.Response.Headers["Vary"] = "Origin";
-                    }
-
-                    context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS";
-                    context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type";
-                    context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
-                }
-            }
-            catch
-            {
-                // ignore, continue
-            }
-
-            return Task.CompletedTask;
-        }
+        ClockSkew = TimeSpan.Zero
     };
 });
 
-// 🔓 Authorization: remove global fallback policy.
-// Only endpoints with [Authorize] will require a logged in user.
 builder.Services.AddAuthorization();
 
-// CORS policy for local frontend during development
-// Allow any localhost / loopback origin (any port), while still supporting credentials.
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy
-            .SetIsOriginAllowed(origin =>
-            {
-                return IsAllowedLocalhostOriginsFallback(origin);
-            })
+            .SetIsOriginAllowed(IsAllowedLocalhostOrigin)
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials();
     });
 });
-
-// Local wrapper used by AddCors lambda to avoid closure capture warnings in some analyzers
-static bool IsAllowedLocalhostOriginsFallback(string origin) => IsAllowedLocalhostOrigin(origin);
 
 var app = builder.Build();
 
@@ -207,35 +159,12 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    app.UseCors("AllowFrontend");
 }
 
-// Important: Use CORS before auth middleware
+// REQUIRED for avatar access
+app.UseStaticFiles();
+
 app.UseCors("AllowFrontend");
-
-// Early OPTIONS handling to ensure preflight always returns CORS headers
-app.Use(async (context, next) =>
-{
-    if (HttpMethods.IsOptions(context.Request.Method))
-    {
-        var origin = context.Request.Headers["Origin"].ToString();
-        if (!string.IsNullOrEmpty(origin) && IsAllowedLocalhostOrigin(origin))
-        {
-            context.Response.Headers["Access-Control-Allow-Origin"] = origin;
-            context.Response.Headers["Vary"] = "Origin";
-        }
-
-        context.Response.Headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,DELETE,OPTIONS";
-        context.Response.Headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type";
-        context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
-
-        context.Response.StatusCode = StatusCodes.Status200OK;
-        await context.Response.CompleteAsync();
-        return;
-    }
-
-    await next();
-});
 
 app.UseAuthentication();
 app.UseAuthorization();

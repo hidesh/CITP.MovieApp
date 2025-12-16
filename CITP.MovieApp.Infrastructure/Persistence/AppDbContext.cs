@@ -32,15 +32,39 @@ namespace CITP.MovieApp.Infrastructure.Persistence
             modelBuilder.Entity<User>(entity =>
             {
                 entity.ToTable("User");
+
                 entity.HasKey(e => e.UserId);
-                entity.Property(e => e.UserId).HasColumnName("user_id").ValueGeneratedOnAdd();
-                entity.Property(e => e.Username).HasColumnName("username").IsRequired();
-                entity.Property(e => e.PasswordHash).HasColumnName("password").IsRequired();
-                entity.Property(e => e.Email).HasColumnName("email").IsRequired();
-                entity.Property(e => e.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+
+                entity.Property(e => e.UserId)
+                    .HasColumnName("user_id")
+                    .ValueGeneratedOnAdd();
+
+                entity.Property(e => e.Username)
+                    .HasColumnName("username")
+                    .IsRequired();
+
+                entity.Property(e => e.Email)
+                    .HasColumnName("email")
+                    .IsRequired();
+
+                entity.Property(e => e.PasswordHash)
+                    .HasColumnName("password")
+                    .IsRequired();
+
+                entity.Property(e => e.CreatedAt)
+                    .HasColumnName("created_at")
+                    .HasDefaultValueSql("NOW()");
+
+                entity.Property(e => e.FullName)
+                    .HasColumnName("full_name");
+
+                entity.Property(e => e.ProfileImageUrl)
+                    .HasColumnName("profile_image_url");
+
                 entity.HasIndex(e => e.Username).IsUnique();
                 entity.HasIndex(e => e.Email).IsUnique();
             });
+
 
             /* ------------------------- TITLE ------------------------- */
             modelBuilder.Entity<Title>(entity =>
